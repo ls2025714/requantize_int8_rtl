@@ -1,0 +1,75 @@
+Time resolution is 1 ps
+PASS case=1 all_positive_full result=68 latency=2 keep=1111
+PASS case=2 mixed_sign_full result=-56 latency=2 keep=1111
+PASS case=3 max_positive result=64516 latency=2 keep=1111
+PASS case=4 min_negative_product result=32768 latency=2 keep=0011
+PASS case=5 single_lane0 result=35 latency=2 keep=0001
+PASS case=6 tail_keep_0111 result=200 latency=2 keep=0111
+PASS case=7 invalid_lanes_zeroed result=140 latency=2 keep=0101
+PASS case=8 all_invalid result=0 latency=2 keep=0000
+PASS case=9 negative_only result=70 latency=2 keep=1111
+PASS case=10 single_negative_edge result=16384 latency=2 keep=0001
+PASS continuous: 8 beats, 1 beat/cycle, PARTIAL_LATENCY=2
+PASS continuous acc result=-79
+PASS bubble: 3 beats with idle gaps, valid aligned
+PASS acc latency=3 value=-5
+--------------------------------------------------
+PARTIAL_LATENCY = 2
+ACC_LATENCY     = 3
+test_count      = 14
+mismatch_count  = 0
+TEST RESULT: PASS
+--------------------------------------------------
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+The current simulation has finished. Please use 'restart' to begin a new simulation.
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+PASS case=1 all_positive_full result=68 latency=2 keep=1111
+PASS case=2 mixed_sign_full result=-56 latency=2 keep=1111
+PASS case=3 max_positive result=64516 latency=2 keep=1111
+PASS case=4 min_negative_product result=32768 latency=2 keep=0011
+PASS case=5 single_lane0 result=35 latency=2 keep=0001
+PASS case=6 tail_keep_0111 result=200 latency=2 keep=0111
+PASS case=7 invalid_lanes_zeroed result=140 latency=2 keep=0101
+PASS case=8 all_invalid result=0 latency=2 keep=0000
+PASS case=9 negative_only result=70 latency=2 keep=1111
+PASS case=10 single_negative_edge result=16384 latency=2 keep=0001
+PASS continuous: 8 beats, 1 beat/cycle, PARTIAL_LATENCY=2
+PASS continuous acc result=-79
+PASS bubble: 3 beats with idle gaps, valid aligned
+PASS acc latency=3 value=-5
+--------------------------------------------------
+PARTIAL_LATENCY = 2
+ACC_LATENCY     = 3
+test_count      = 14
+mismatch_count  = 0
+TEST RESULT: PASS
+--------------------------------------------------
+$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498

@@ -1,0 +1,7 @@
+Running: xsim.dir/tb_requantize_int8_behav/xsimk.exe -simmode gui -wdb tb_requantize_int8_behav.wdb -simrunnum 0 -socket 9724
+Design successfully loaded
+Design Loading Memory Usage: 22328 KB (Peak: 22328 KB)
+Design Loading CPU Usage: 78 ms
+Simulation completed
+Simulation Memory Usage: 23996 KB (Peak: 23996 KB)
+Simulation CPU Usage: 78 ms
