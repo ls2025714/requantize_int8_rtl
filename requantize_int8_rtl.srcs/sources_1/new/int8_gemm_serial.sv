@@ -1,3 +1,15 @@
+// ============================================================================
+// 文件: int8_gemm_serial.sv
+// 阶段: 串行 GEMM baseline
+// 作用: M×N×K 矩阵乘控制器，内部串行点积，C 元素 INT32 输出
+// 验证: tb_int8_gemm_serial.sv
+// ============================================================================
+
+// 计算 C[M×N] = A[M×K] × B[K×N]，行优先存 a_mem / b_mem
+// FSM: IDLE → LOAD_A → LOAD_B → (对每个 C[i][j]) DOT_CMD → DOT_FEED → DOT_WAIT → OUTPUT_C
+// DOT_FEED: 每拍读 a_mem[a_read_addr] 与 b_mem[b_read_addr]
+//   A 地址沿行 +1；B 地址沿列 +N（b_read_addr += n_reg）
+// 输出: 每个 C 元素 INT32，带 c_row/c_col
 module int8_gemm_serial #(
     parameter int INPUT_WIDTH = 8,
     parameter int ACC_WIDTH = 32,
@@ -33,6 +45,8 @@ localparam int A_COUNT_WIDTH = $clog2(A_DEPTH + 1);
 localparam int B_COUNT_WIDTH = $clog2(B_DEPTH + 1);
 localparam int A_ADDR_WIDTH = (A_DEPTH <= 1) ? 1 : $clog2(A_DEPTH);
 localparam int B_ADDR_WIDTH = (B_DEPTH <= 1) ? 1 : $clog2(B_DEPTH);
+// FSM 同并行版，DOT_FEED 为每拍 1 对 (a,b)
+
 typedef enum logic [2:0] {IDLE, LOAD_A, LOAD_B, DOT_CMD, DOT_FEED, DOT_WAIT, OUTPUT_C} state_t;
 state_t state;
 logic [M_WIDTH-1:0] m_reg;
@@ -77,6 +91,7 @@ assign c_accept = c_valid && c_ready;
 assign c_data = c_data_reg;
 assign c_row = row_index;
 assign c_col = col_index;
+// --- 点积子模块连线 ---
 assign dot_cmd_valid = (state == DOT_CMD);
 assign dot_cmd_length = k_reg;
 assign dot_s_valid = (state == DOT_FEED);
@@ -175,6 +190,7 @@ always_ff @(posedge clk) begin
                     state       <= DOT_FEED;
                 end
             end
+                // k_index 递增；A+1，B+N
             DOT_FEED: begin
                 if (dot_s_ready) begin
                     if (k_index == k_reg - 1'b1) begin

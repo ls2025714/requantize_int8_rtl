@@ -1,7 +1,0 @@
-Running: xsim.dir/tb_requantize_int8_pipeline_behav/xsimk.exe -simmode gui -wdb tb_requantize_int8_pipeline_behav.wdb -simrunnum 0 -socket 2412
-Design successfully loaded
-Design Loading Memory Usage: 22332 KB (Peak: 22332 KB)
-Design Loading CPU Usage: 78 ms
-Simulation completed
-Simulation Memory Usage: 23268 KB (Peak: 23268 KB)
-Simulation CPU Usage: 109 ms

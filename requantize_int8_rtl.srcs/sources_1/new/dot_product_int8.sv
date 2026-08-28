@@ -1,3 +1,16 @@
+// ============================================================================
+// 文件: dot_product_int8.sv
+// 阶段: 串行点积
+// 作用: 向量点积（每拍 1 对 INT8），输出 INT32 累加和
+// 验证: tb_dot_product_int8.sv
+// ============================================================================
+
+// 协议:
+//   1) cmd_valid/cmd_length — 告诉点积长度 K
+//   2) RUN 态流式 s_valid + s_a/s_b，每拍一对
+//   3) DRAIN 等 MAC 流水线尾部结果进入 acc
+//   4) OUTPUT 态 m_valid=1 输出 m_result，等 m_ready 回 IDLE
+// 内部实例化 int8_mac_pipeline；cmd_accept 时 pulse clear
 module dot_product_int8 #(
     parameter int INPUT_WIDTH  = 8,
     parameter int ACC_WIDTH    = 32,
@@ -17,6 +30,8 @@ module dot_product_int8 #(
     input  logic                          m_ready,
     output logic signed [ACC_WIDTH-1:0]   m_result
 );
+// FSM: IDLE→RUN→DRAIN→OUTPUT
+
 typedef enum logic [1:0] {IDLE, RUN, DRAIN, OUTPUT} state_t;
 state_t state;
 logic [LENGTH_WIDTH-1:0] length_reg;
@@ -30,6 +45,7 @@ logic mac_out_valid;
 logic signed [ACC_WIDTH-1:0] mac_acc_out;
 logic cmd_accept;
 logic input_accept;
+// --- 握手 ---
 assign cmd_ready = (state == IDLE) && (cmd_length != '0) && (cmd_length <= MAX_K);
 assign cmd_accept = cmd_valid && cmd_ready;
 assign s_ready = (state == RUN) && (input_count < length_reg);
@@ -61,6 +77,7 @@ always_ff @(posedge clk) begin
         acc_count   <= '0;
         result_reg  <= '0;
     end else begin
+        // --- 主 FSM ---
         case (state)
             IDLE: begin
                 input_count <= '0;
@@ -70,6 +87,7 @@ always_ff @(posedge clk) begin
                     state      <= RUN;
                 end
             end
+            // 收 K 个输入；与 mac_out_valid 计数对齐
             RUN: begin
                 if (input_accept) begin
                     if (input_count == length_reg - 1'b1) begin
@@ -87,6 +105,7 @@ always_ff @(posedge clk) begin
                     end
                 end
             end
+            // 不收新输入，等 pipeline 尾部
             DRAIN: begin
                 if (mac_out_valid) begin
                     if (acc_count == length_reg - 1'b1) begin

@@ -1,7 +1,0 @@
-Running: xsim.dir/tb_requantize_python_vectors_behav/xsimk.exe -simmode gui -wdb tb_requantize_python_vectors_behav.wdb -simrunnum 0 -socket 6931
-Design successfully loaded
-Design Loading Memory Usage: 22324 KB (Peak: 22324 KB)
-Design Loading CPU Usage: 109 ms
-Simulation completed
-Simulation Memory Usage: 23316 KB (Peak: 23316 KB)
-Simulation CPU Usage: 140 ms

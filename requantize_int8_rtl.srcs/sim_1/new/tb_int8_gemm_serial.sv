@@ -1,3 +1,10 @@
+// ============================================================================
+// TB: tb_int8_gemm_serial.sv
+// 测:  int8_gemm_serial
+// 作用: 串行 GEMM 24 case 内联回归
+// ============================================================================
+
+// 串行 GEMM 24 case（定向+随机），内联矩阵与 INT32 期望
 `timescale 1ns/1ps
 module tb_int8_gemm_serial;
 localparam int INPUT_WIDTH = 8;

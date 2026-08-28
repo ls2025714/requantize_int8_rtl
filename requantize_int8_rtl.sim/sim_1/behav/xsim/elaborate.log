@@ -1,7 +1,7 @@
 Vivado Simulator v2026.1
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
 Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
-Running: F:/vivado/2026.1/Vivado/bin/unwrapped/win64.o/xelab.exe --incr --debug typical --relax --mt 2 -L xil_defaultlib -L uvm -L unisims_ver -L unimacro_ver -L secureip --snapshot tb_int8_dot_product_parallel_behav xil_defaultlib.tb_int8_dot_product_parallel xil_defaultlib.glbl -log elaborate.log 
+Running: F:/vivado/2026.1/Vivado/bin/unwrapped/win64.o/xelab.exe --incr --debug typical --relax --mt 2 -L xil_defaultlib -L uvm -L unisims_ver -L unimacro_ver -L secureip --snapshot tb_int8_transformer_block_behav xil_defaultlib.tb_int8_transformer_block xil_defaultlib.glbl -log elaborate.log 
 INFO: [XSIM 43-3493] Using 2 slave threads.
 Starting static elaboration
 Pass Through NonSizing Optimizer
@@ -9,7 +9,25 @@ Completed static elaboration
 Starting simulation data flow analysis
 Completed simulation data flow analysis
 Time Resolution for simulation is 1ps
-Compiling module xil_defaultlib.int8_dot_product_parallel(LENGTH...
-Compiling module xil_defaultlib.tb_int8_dot_product_parallel
+Compiling module xil_defaultlib.int8_dot_product_parallel(MAX_K=...
+Compiling module xil_defaultlib.int8_gemm_parallel(M_WIDTH=3,N_W...
+Compiling module xil_defaultlib.requantize_int8_pipeline_default
+Compiling module xil_defaultlib.int8_weight_loader(DEPTH=12288,A...
+Compiling module xil_defaultlib.int8_linear_tiled(WEIGHT_DEPTH=1...
+Compiling module xil_defaultlib.int8_weight_loader(DEPTH=4096,AD...
+Compiling module xil_defaultlib.int8_linear_tiled(FULL_N=64,NUM_...
+Compiling module xil_defaultlib.int8_weight_loader(DEPTH=16384,A...
+Compiling module xil_defaultlib.int8_linear_tiled(FULL_N=256,NUM...
+Compiling module xil_defaultlib.int8_linear_tiled(FULL_N=64,FULL...
+Compiling module xil_defaultlib.int8_score_gemm_default
+Compiling module xil_defaultlib.int8_softmax_causal_default
+Compiling module xil_defaultlib.int8_attn_v_default
+Compiling module xil_defaultlib.int8_residual_add
+Compiling module xil_defaultlib.int8_silu_lut
+Compiling module xil_defaultlib.int8_elem_mul_default
+Compiling module xil_defaultlib.int8_transformer_block_default
+Compiling module xil_defaultlib.tb_int8_transformer_block
+WARNING: [XSIM 43-3373] "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_transformer_block.sv" Line 136. System function $sscanf is used as system task. This system function should have a LHS e.g. x=$sscanf().
+WARNING: [XSIM 43-3373] "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_transformer_block.sv" Line 160. System function $sscanf is used as system task. This system function should have a LHS e.g. x=$sscanf().
 Compiling module xil_defaultlib.glbl
-Built simulation snapshot tb_int8_dot_product_parallel_behav
+Built simulation snapshot tb_int8_transformer_block_behav

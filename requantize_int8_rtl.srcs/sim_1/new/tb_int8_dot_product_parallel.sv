@@ -1,3 +1,14 @@
+// ============================================================================
+// TB: tb_int8_dot_product_parallel.sv
+// 测:  int8_dot_product_parallel
+// 作用: Task B/C — partial/acc 时序 + FSM 定向 + 随机，内联 case
+// ============================================================================
+
+// Task B/C 大 TB:
+//   - partial/acc 单拍时序（Task B）
+//   - FSM 定向 case（Task C）
+//   - 随机 case + mismatch_count 统计
+// 复用 task: send_command, send_beat, receive_result, pulse_clear
 `timescale 1ns/1ps
 
 module tb_int8_dot_product_parallel;
@@ -112,6 +123,9 @@ module tb_int8_dot_product_parallel;
         end
     endfunction
 
+    // -------------------------------------------------------------------------
+    // 通用 helper：清输入、采样、发 cmd/beat、收 m_result
+    // -------------------------------------------------------------------------
     task automatic clear_inputs;
         begin
             s_valid = 1'b0;
@@ -138,6 +152,8 @@ module tb_int8_dot_product_parallel;
     task automatic pulse_clear;
         begin
             @(negedge clk);
+            cmd_valid = 1'b0;
+            cmd_length = '0;
             acc_clear = 1'b1;
             clear_inputs();
             @(posedge clk);
@@ -243,6 +259,338 @@ module tb_int8_dot_product_parallel;
             end
 
             test_count = test_count + 1;
+        end
+    endtask
+
+    function automatic integer beat_count_for_k(input integer K);
+        return (K + 3) / 4;
+    endfunction
+
+    function automatic bit [3:0] beat_keep_mask(input integer K, input integer beat_idx);
+        integer base_idx;
+        integer lane;
+        begin
+            beat_keep_mask = 4'b0000;
+            base_idx = beat_idx * 4;
+            for (lane = 0; lane < 4; lane = lane + 1) begin
+                if ((base_idx + lane) < K) begin
+                    beat_keep_mask[lane] = 1'b1;
+                end
+            end
+        end
+    endfunction
+
+    function automatic integer signed expected_dot_product_k(
+        input integer K,
+        input integer signed a_vec [0:15],
+        input integer signed b_vec [0:15]
+    );
+        integer idx;
+        integer signed sum_value;
+        begin
+            sum_value = 0;
+            for (idx = 0; idx < K; idx = idx + 1) begin
+                sum_value = sum_value + a_vec[idx] * b_vec[idx];
+            end
+            return sum_value;
+        end
+    endfunction
+
+    task automatic recover_dut;
+        begin
+            m_ready = 1'b1;
+            @(posedge clk);
+            #1;
+            @(negedge clk);
+            m_ready = 1'b0;
+            acc_clear = 1'b1;
+            @(posedge clk);
+            #1;
+            @(negedge clk);
+            acc_clear = 1'b0;
+        end
+    endtask
+
+    task automatic send_command(input integer K, output bit ok);
+        begin
+            ok = 1'b1;
+            @(negedge clk);
+            cmd_length = K[LENGTH_WIDTH-1:0];
+            cmd_valid = 1'b0;
+            @(negedge clk);
+            cmd_valid = 1'b1;
+            if (!cmd_ready) begin
+                ok = 1'b0;
+                cmd_valid = 1'b0;
+                mismatch_count = mismatch_count + 1;
+                $display(
+                    "FAIL send_command not ready K=%0d state=%0d cmd_length=%0d",
+                    K, dut.state, cmd_length
+                );
+                recover_dut();
+                return;
+            end
+            @(posedge clk);
+            #1;
+            if (dut.state != 1) begin
+                ok = 1'b0;
+                cmd_valid = 1'b0;
+                mismatch_count = mismatch_count + 1;
+                $display(
+                    "FAIL send_command no accept K=%0d state=%0d",
+                    K, dut.state
+                );
+                recover_dut();
+                return;
+            end
+            @(negedge clk);
+            cmd_valid = 1'b0;
+        end
+    endtask
+
+    task automatic send_beat(
+        input integer signed a0,
+        input integer signed a1,
+        input integer signed a2,
+        input integer signed a3,
+        input integer signed b0,
+        input integer signed b1,
+        input integer signed b2,
+        input integer signed b3,
+        input bit [3:0] keep,
+        input integer gap_cycles
+    );
+        integer gap;
+        integer wait_cycles;
+        begin
+            for (gap = 0; gap < gap_cycles; gap = gap + 1) begin
+                @(negedge clk);
+                clear_inputs();
+            end
+            @(negedge clk);
+            s_a0 = a0;
+            s_a1 = a1;
+            s_a2 = a2;
+            s_a3 = a3;
+            s_b0 = b0;
+            s_b1 = b1;
+            s_b2 = b2;
+            s_b3 = b3;
+            s_keep = keep;
+            s_valid = 1'b1;
+            wait_cycles = 0;
+            while (!s_ready && (wait_cycles < CASE_TIMEOUT_CYCLES)) begin
+                @(negedge clk);
+                wait_cycles = wait_cycles + 1;
+            end
+            if (!s_ready) begin
+                mismatch_count = mismatch_count + 1;
+                $display("FAIL send_beat timeout keep=%b", keep);
+                clear_inputs();
+                recover_dut();
+                return;
+            end
+            @(posedge clk);
+            #1;
+            @(negedge clk);
+            clear_inputs();
+        end
+    endtask
+
+    task automatic receive_result(
+        input integer signed expected,
+        input integer case_id,
+        input integer K,
+        input integer hold_cycles
+    );
+        integer hold;
+        integer wait_cycles;
+        integer signed held_result;
+        begin
+            m_ready = 1'b0;
+            wait_cycles = 0;
+            while (!m_valid && (wait_cycles < CASE_TIMEOUT_CYCLES)) begin
+                @(posedge clk);
+                #1;
+                wait_cycles = wait_cycles + 1;
+            end
+            if (!m_valid) begin
+                mismatch_count = mismatch_count + 1;
+                $display("FAIL fsm timeout case=%0d K=%0d waiting for m_valid", case_id, K);
+                recover_dut();
+                return;
+            end
+            held_result = $signed(m_result);
+            if (held_result !== expected) begin
+                mismatch_count = mismatch_count + 1;
+                $display("FAIL fsm case=%0d K=%0d rtl=%0d expected=%0d", case_id, K, held_result, expected);
+            end else begin
+                $display("PASS fsm case=%0d K=%0d result=%0d", case_id, K, held_result);
+            end
+            for (hold = 0; hold < hold_cycles; hold = hold + 1) begin
+                @(negedge clk);
+                if (!m_valid || ($signed(m_result) !== held_result)) begin
+                    mismatch_count = mismatch_count + 1;
+                    $display(
+                        "FAIL fsm backpressure case=%0d cycle=%0d m_valid=%0d result=%0d held=%0d",
+                        case_id, hold, m_valid, $signed(m_result), held_result
+                    );
+                end
+            end
+            m_ready = 1'b1;
+            @(posedge clk);
+            #1;
+            @(negedge clk);
+            m_ready = 1'b0;
+            if (m_valid) begin
+                mismatch_count = mismatch_count + 1;
+                $display("FAIL fsm handshake case=%0d m_valid did not clear", case_id);
+            end
+        end
+    endtask
+
+    // 跑一组完整 FSM case：cmd → 若干 beat → receive_result
+    task automatic run_fsm_case(
+        input integer case_id,
+        input integer K,
+        input integer signed a_vec [0:15],
+        input integer signed b_vec [0:15],
+        input integer gap_cycles,
+        input integer hold_cycles
+    );
+        integer beats;
+        integer beat;
+        integer base;
+        integer lane;
+        integer signed a0;
+        integer signed a1;
+        integer signed a2;
+        integer signed a3;
+        integer signed b0;
+        integer signed b1;
+        integer signed b2;
+        integer signed b3;
+        bit [3:0] keep;
+        bit cmd_ok;
+        integer signed expected;
+        begin
+            $display("FSM case=%0d K=%0d beats=%0d", case_id, K, beat_count_for_k(K));
+            expected = expected_dot_product_k(K, a_vec, b_vec);
+            send_command(K, cmd_ok);
+            if (!cmd_ok) begin
+                test_count = test_count + 1;
+                return;
+            end
+            beats = beat_count_for_k(K);
+            for (beat = 0; beat < beats; beat = beat + 1) begin
+                base = beat * 4;
+                a0 = (base + 0 < K) ? a_vec[base + 0] : 0;
+                a1 = (base + 1 < K) ? a_vec[base + 1] : 0;
+                a2 = (base + 2 < K) ? a_vec[base + 2] : 0;
+                a3 = (base + 3 < K) ? a_vec[base + 3] : 0;
+                b0 = (base + 0 < K) ? b_vec[base + 0] : 0;
+                b1 = (base + 1 < K) ? b_vec[base + 1] : 0;
+                b2 = (base + 2 < K) ? b_vec[base + 2] : 0;
+                b3 = (base + 3 < K) ? b_vec[base + 3] : 0;
+                keep = beat_keep_mask(K, beat);
+                send_beat(a0, a1, a2, a3, b0, b1, b2, b3, keep, (beat == 0) ? 0 : gap_cycles);
+            end
+            receive_result(expected, case_id, K, hold_cycles);
+            test_count = test_count + 1;
+        end
+    endtask
+
+    // -------------------------------------------------------------------------
+    // Task C：FSM 定向 case（K=1..16、尾 beat keep、随机 K）
+    // -------------------------------------------------------------------------
+    task automatic check_fsm_task_c;
+        integer signed a_vec [0:15];
+        integer signed b_vec [0:15];
+        integer idx;
+        integer random_k;
+        integer j;
+        begin
+            // K=1, lane 0 only
+            a_vec[0] = 7;  b_vec[0] = 5;
+            run_fsm_case(101, 1, a_vec, b_vec, 0, 2);
+
+            // K=3, single-beat tail mask
+            a_vec[0] = 2;  b_vec[0] = 3;
+            a_vec[1] = -4; b_vec[1] = 5;
+            a_vec[2] = 6;  b_vec[2] = -1;
+            run_fsm_case(102, 3, a_vec, b_vec, 0, 2);
+
+            // K=4, one full beat
+            a_vec[0] = 1;  b_vec[0] = 2;
+            a_vec[1] = 3;  b_vec[1] = 4;
+            a_vec[2] = -5; b_vec[2] = 6;
+            a_vec[3] = 7;  b_vec[3] = -8;
+            run_fsm_case(103, 4, a_vec, b_vec, 0, 2);
+
+            // K=5, one full beat + one lane
+            for (idx = 0; idx < 5; idx = idx + 1) begin
+                a_vec[idx] = idx + 1;
+                b_vec[idx] = (idx % 2 == 0) ? 2 : -3;
+            end
+            run_fsm_case(104, 5, a_vec, b_vec, 0, 2);
+
+            // K=7, last beat keep=0111
+            for (idx = 0; idx < 7; idx = idx + 1) begin
+                a_vec[idx] = 10 + idx;
+                b_vec[idx] = 1;
+            end
+            run_fsm_case(105, 7, a_vec, b_vec, 0, 3);
+
+            // K=8, two full beats
+            for (idx = 0; idx < 8; idx = idx + 1) begin
+                a_vec[idx] = (idx % 2 == 0) ? 3 : -2;
+                b_vec[idx] = idx + 1;
+            end
+            run_fsm_case(106, 8, a_vec, b_vec, 0, 2);
+
+            // K=16, continuous full load
+            for (idx = 0; idx < 16; idx = idx + 1) begin
+                a_vec[idx] = idx - 8;
+                b_vec[idx] = (idx % 3 == 0) ? 4 : -1;
+            end
+            run_fsm_case(107, 16, a_vec, b_vec, 0, 2);
+
+            // K=17, multi-beat with tail
+            for (idx = 0; idx < 17; idx = idx + 1) begin
+                a_vec[idx] = 17 - idx;
+                b_vec[idx] = 2;
+            end
+            run_fsm_case(108, 17, a_vec, b_vec, 0, 2);
+
+            // -128 x -128 boundary inside K=4 beat
+            a_vec[0] = -128; b_vec[0] = -128;
+            a_vec[1] = 127;  b_vec[1] = 127;
+            a_vec[2] = -1;   b_vec[2] = 1;
+            a_vec[3] = 0;    b_vec[3] = 0;
+            run_fsm_case(109, 4, a_vec, b_vec, 0, 2);
+
+            // Input bubbles between beats, K=7
+            run_fsm_case(110, 7, a_vec, b_vec, 2, 2);
+
+            // Consecutive commands without overlapping output
+            for (idx = 0; idx < 4; idx = idx + 1) begin
+                a_vec[idx] = idx + 2;
+                b_vec[idx] = 3;
+            end
+            run_fsm_case(111, 4, a_vec, b_vec, 0, 1);
+            a_vec[0] = -5; b_vec[0] = 6;
+            run_fsm_case(112, 1, a_vec, b_vec, 0, 1);
+
+            // 10 random K cases with bubbles and backpressure
+            for (idx = 0; idx < 10; idx = idx + 1) begin
+                random_k = $urandom_range(1, 16);
+                for (j = 0; j < random_k; j = j + 1) begin
+                    a_vec[j] = $urandom_range(0, 255) - 128;
+                    b_vec[j] = $urandom_range(0, 255) - 128;
+                end
+                run_fsm_case(200 + idx, random_k, a_vec, b_vec,
+                             $urandom_range(0, 2), $urandom_range(1, 3));
+            end
         end
     endtask
 
@@ -456,6 +804,7 @@ module tb_int8_dot_product_parallel;
         forever #5 clk = ~clk;
     end
 
+    // 主测试：Task B partial/acc → Task C FSM → 汇总 PASS/FAIL
     initial begin
         rst_n = 1'b0;
         cmd_valid = 1'b0;
@@ -483,13 +832,16 @@ module tb_int8_dot_product_parallel;
         check_partial_latency(10, "single_negative_edge", -128, 1, 1, 1, -128, 1, 1, 1, 4'b0001);
 
         check_continuous_and_bubbles();
+        pulse_clear();
+        $display("--- Task C FSM tests begin ---");
+        check_fsm_task_c();
 
         $display("--------------------------------------------------");
         $display("PARTIAL_LATENCY = %0d", PARTIAL_LATENCY);
         $display("ACC_LATENCY     = %0d", ACC_LATENCY);
         $display("test_count      = %0d", test_count);
         $display("mismatch_count  = %0d", mismatch_count);
-        if ((test_count == 14) && (mismatch_count == 0)) begin
+        if ((test_count == 36) && (mismatch_count == 0)) begin
             $display("TEST RESULT: PASS");
         end else begin
             $display("TEST RESULT: FAIL");
@@ -498,8 +850,9 @@ module tb_int8_dot_product_parallel;
         $finish;
     end
 
+    // Safety watchdog only; normal completion is $finish from the test sequence (~10-20 us).
     initial begin
-        #50000;
+        #20000;
         $display("ERROR: simulation timeout");
         $display("test_count=%0d mismatch_count=%0d", test_count, mismatch_count);
         $finish;

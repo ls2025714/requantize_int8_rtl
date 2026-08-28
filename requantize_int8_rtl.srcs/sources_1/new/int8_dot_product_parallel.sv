@@ -1,3 +1,26 @@
+// ============================================================================
+// 文件: int8_dot_product_parallel.sv
+// 阶段: D1/D2（Task B/C/D 点积核心）
+// 作用: 4-lane 并行点积，s_keep 掩尾 beat，FSM: IDLE→RUN→DRAIN→OUTPUT
+// 验证: tb_int8_dot_product_parallel.sv / tb_dot_product_parallel_python_vectors.sv
+// ============================================================================
+
+// 4-lane 数据通路（每 beat 最多 4 个 MAC）:
+//   S1: 4×INT8 乘法 → 16-bit product（s_keep=0 的 lane 乘积强制为 0）
+//   S2: 两两相加 → 17-bit pair sum（相加前符号扩展到 17-bit）
+//   S3: 两个 pair 相加 → 18-bit partial sum
+//   S4: partial 累加到 32-bit acc_reg
+// beat_total = ceil(K/4)；尾 beat 由 s_keep 掩无效 lane
+// DRAIN: 最后一 beat 已收，不再 s_ready，等 pipeline 内剩余 partial 进 acc
+// debug_mode: IDLE 且无 cmd 时，acc_enable 可单步灌 partial（Task B 用）
+//
+// 端口:
+//   cmd_*     — 点积长度 K；cmd_accept 后进入 RUN
+//   s_*       — 流式输入 beat；s_a0..3 / s_b0..3 为 4 lane；s_keep 掩无效 lane
+//   m_*       — 输出 INT32 点积结果
+//   partial_* — debug：S3 输出的 18-bit partial sum
+//   acc_*     — debug：S4 累加器当前值
+//
 module int8_dot_product_parallel #(
     parameter int INPUT_WIDTH     = 8,
     parameter int PRODUCT_WIDTH   = 16,
@@ -36,27 +59,37 @@ module int8_dot_product_parallel #(
     output logic                          acc_valid,
     output logic signed [ACC_WIDTH-1:0]   acc_value
 );
-    // Stage 1: 4-lane products (16-bit)
+    typedef enum logic [1:0] {IDLE, RUN, DRAIN, OUTPUT} state_t;
+
+    state_t state;
+    logic [LENGTH_WIDTH-1:0] length_reg;
+    logic [LENGTH_WIDTH-1:0] beat_total_reg;
+    logic [LENGTH_WIDTH-1:0] beat_count;
+    logic [LENGTH_WIDTH-1:0] acc_count;
+    logic signed [ACC_WIDTH-1:0] result_reg;
+
     logic signed [PRODUCT_WIDTH-1:0] product0_s1;
     logic signed [PRODUCT_WIDTH-1:0] product1_s1;
     logic signed [PRODUCT_WIDTH-1:0] product2_s1;
     logic signed [PRODUCT_WIDTH-1:0] product3_s1;
     logic                            valid_s1;
 
-    // Stage 2: pair sums (17-bit)
     logic signed [PAIR_WIDTH-1:0] pair_sum0_s2;
     logic signed [PAIR_WIDTH-1:0] pair_sum1_s2;
     logic                         valid_s2;
 
-    // Stage 3: partial sum (18-bit)
     logic signed [PARTIAL_WIDTH-1:0] partial_sum_s3;
     logic                            valid_s3;
 
-    // Stage 4: INT32 accumulation
     logic signed [ACC_WIDTH-1:0] acc_reg;
     logic                        valid_s4;
 
+    logic cmd_accept;
     logic input_accept;
+    logic debug_mode;
+    logic pipeline_clear;
+    logic pipeline_enable;
+
     logic signed [PRODUCT_WIDTH-1:0] product0_in;
     logic signed [PRODUCT_WIDTH-1:0] product1_in;
     logic signed [PRODUCT_WIDTH-1:0] product2_in;
@@ -71,16 +104,26 @@ module int8_dot_product_parallel #(
     logic signed [PARTIAL_WIDTH-1:0] pair_sum1_ext18;
     logic signed [PARTIAL_WIDTH-1:0] partial_sum_comb;
 
-    assign input_accept = s_valid && s_ready;
-    // Task B: always ready so continuous 1 beat/cycle is possible after fill.
-    // Task C will gate s_ready with RUN/DRAIN state.
-    assign s_ready = 1'b1;
+    // --- 流控与握手 ---
+    assign debug_mode      = (state == IDLE) && !cmd_valid;
+    assign cmd_ready       = (state == IDLE) && (cmd_length != '0) && (cmd_length <= MAX_K);
+    assign cmd_accept      = cmd_valid && cmd_ready;
+    assign s_ready         = ((state == RUN) && (beat_count < beat_total_reg)) ||
+                             (debug_mode && acc_enable);
+    assign input_accept    = s_valid && s_ready;
+    assign m_valid         = (state == OUTPUT);
+    assign m_result        = result_reg;
+    assign pipeline_clear  = cmd_accept || acc_clear;
+    assign pipeline_enable = (state == RUN) || (state == DRAIN) ||
+                             (debug_mode && acc_enable);
 
+    // --- 4-lane 乘法（keep 掩码）---
     assign product0_in = s_keep[0] ? (s_a0 * s_b0) : PRODUCT_WIDTH'(0);
     assign product1_in = s_keep[1] ? (s_a1 * s_b1) : PRODUCT_WIDTH'(0);
     assign product2_in = s_keep[2] ? (s_a2 * s_b2) : PRODUCT_WIDTH'(0);
     assign product3_in = s_keep[3] ? (s_a3 * s_b3) : PRODUCT_WIDTH'(0);
 
+    // --- 组合加：16→17→18→32 位宽扩展 ---
     assign product0_ext17 = {{1{product0_s1[PRODUCT_WIDTH-1]}}, product0_s1};
     assign product1_ext17 = {{1{product1_s1[PRODUCT_WIDTH-1]}}, product1_s1};
     assign product2_ext17 = {{1{product2_s1[PRODUCT_WIDTH-1]}}, product2_s1};
@@ -97,12 +140,70 @@ module int8_dot_product_parallel #(
     assign acc_valid     = valid_s4;
     assign acc_value     = acc_reg;
 
-    // Command / output stream reserved for Task C FSM.
-    assign cmd_ready = 1'b0;
-    assign m_valid   = 1'b0;
-    assign m_result  = '0;
+    // --- 主 FSM：beat/acc 计数，RUN→DRAIN→OUTPUT ---
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            state          <= IDLE;
+            length_reg     <= '0;
+            beat_total_reg <= '0;
+            beat_count     <= '0;
+            acc_count      <= '0;
+            result_reg     <= '0;
+        end else if (acc_clear) begin
+            state      <= IDLE;
+            beat_count <= '0;
+            acc_count  <= '0;
+        end else begin
+            case (state)
+                IDLE: begin
+                    beat_count <= '0;
+                    acc_count  <= '0;
+                    if (cmd_accept) begin
+                        length_reg     <= cmd_length;
+                        beat_total_reg <= (cmd_length + PARALLELISM - 1) >> 2;
+                        state          <= RUN;
+                    end
+                end
+                RUN: begin
+                    if (input_accept) begin
+                        if (beat_count == beat_total_reg - 1'b1) begin
+                            state <= DRAIN;
+                        end else begin
+                            beat_count <= beat_count + 1'b1;
+                        end
+                    end
+                    if (acc_valid) begin
+                        if (acc_count == beat_total_reg - 1'b1) begin
+                            result_reg <= acc_reg;
+                            state      <= OUTPUT;
+                        end else begin
+                            acc_count <= acc_count + 1'b1;
+                        end
+                    end
+                end
+                DRAIN: begin
+                    if (acc_valid) begin
+                        if (acc_count == beat_total_reg - 1'b1) begin
+                            result_reg <= acc_reg;
+                            state      <= OUTPUT;
+                        end else begin
+                            acc_count <= acc_count + 1'b1;
+                        end
+                    end
+                end
+                OUTPUT: begin
+                    if (m_ready) begin
+                        state <= IDLE;
+                    end
+                end
+                default: begin
+                    state <= IDLE;
+                end
+            endcase
+        end
+    end
 
-    // Stage 1: register masked products from accepted beat.
+    // --- 流水线 S1：寄存 4 路乘积 ---
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             product0_s1 <= '0;
@@ -110,7 +211,7 @@ module int8_dot_product_parallel #(
             product2_s1 <= '0;
             product3_s1 <= '0;
             valid_s1    <= 1'b0;
-        end else if (acc_clear) begin
+        end else if (pipeline_clear) begin
             valid_s1 <= 1'b0;
         end else begin
             valid_s1 <= input_accept;
@@ -123,13 +224,13 @@ module int8_dot_product_parallel #(
         end
     end
 
-    // Stage 2: register pair sums from Stage-1 products only.
+    // --- 流水线 S2：pair sum ---
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             pair_sum0_s2 <= '0;
             pair_sum1_s2 <= '0;
             valid_s2     <= 1'b0;
-        end else if (acc_clear) begin
+        end else if (pipeline_clear) begin
             valid_s2 <= 1'b0;
         end else begin
             valid_s2 <= valid_s1;
@@ -140,12 +241,12 @@ module int8_dot_product_parallel #(
         end
     end
 
-    // Stage 3: register partial sum from Stage-2 pair sums only.
+    // --- 流水线 S3：partial sum ---
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             partial_sum_s3 <= '0;
             valid_s3       <= 1'b0;
-        end else if (acc_clear) begin
+        end else if (pipeline_clear) begin
             valid_s3 <= 1'b0;
         end else begin
             valid_s3 <= valid_s2;
@@ -155,17 +256,17 @@ module int8_dot_product_parallel #(
         end
     end
 
-    // Stage 4: accumulate Stage-3 partial sum; emit acc_valid one cycle later.
+    // --- 流水线 S4：累加器 ---
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             acc_reg  <= '0;
             valid_s4 <= 1'b0;
-        end else if (acc_clear) begin
+        end else if (pipeline_clear) begin
             acc_reg  <= '0;
             valid_s4 <= 1'b0;
         end else begin
-            valid_s4 <= acc_enable && valid_s3;
-            if (acc_enable && valid_s3) begin
+            valid_s4 <= pipeline_enable && valid_s3;
+            if (pipeline_enable && valid_s3) begin
                 acc_reg <= acc_reg + {{(ACC_WIDTH-PARTIAL_WIDTH){partial_sum_s3[PARTIAL_WIDTH-1]}}, partial_sum_s3};
             end
         end

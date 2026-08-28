@@ -1,7 +1,0 @@
-Running: xsim.dir/tb_int8_dot_product_parallel_behav/xsimk.exe -simmode gui -wdb tb_int8_dot_product_parallel_behav.wdb -simrunnum 0 -socket 12084
-Design successfully loaded
-Design Loading Memory Usage: 22340 KB (Peak: 22340 KB)
-Design Loading CPU Usage: 93 ms
-Simulation completed
-Simulation Memory Usage: 24240 KB (Peak: 24240 KB)
-Simulation CPU Usage: 140 ms

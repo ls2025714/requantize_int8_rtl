@@ -1,3 +1,13 @@
+// ============================================================================
+// 文件: requantize_int8.sv
+// 阶段: 量化
+// 作用: 组合逻辑 — (INT32 acc × 18-bit scale) >>> 24 → 对称饱和 INT8
+// 验证: tb_requantize_int8_pipeline.sv
+// ============================================================================
+//
+// 公式: out = saturate( round( acc_i × multiplier_i ) >> SHIFT_BITS )
+//   acc_i — INT32 累加；multiplier_i — 18-bit 无符号 scale；饱和 ±127
+//
 module requantize_int8 #(
     parameter int SHIFT_BITS = 24
 ) (

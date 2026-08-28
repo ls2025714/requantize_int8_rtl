@@ -1,3 +1,10 @@
+// ============================================================================
+// TB: tb_int8_mac_pipeline.sv
+// 测:  int8_mac_pipeline
+// 作用: 从 mac_control_vectors.txt 读入控制与期望 acc
+// ============================================================================
+
+// 从 mac_control_vectors.txt 读入：clear/enable/in_valid/activation/weight/期望 acc
 `timescale 1ns/1ps
 module tb_int8_mac_pipeline;
 localparam int INPUT_WIDTH = 8;

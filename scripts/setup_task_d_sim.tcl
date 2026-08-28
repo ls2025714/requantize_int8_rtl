@@ -1,0 +1,23 @@
+# Switch Vivado sim_1 to Task D python-vector testbench.
+# Usage (from project root):
+#   vivado -mode batch -source scripts/setup_task_d_sim.tcl
+
+set proj_dir [file normalize [file join [file dirname [info script]] ..]]
+set proj_file [file join $proj_dir requantize_int8_rtl.xpr]
+set wave_tcl  [file normalize [file join $proj_dir scripts xsim tb_dot_product_parallel_python_vectors.tcl]]
+
+open_project $proj_file
+
+set fs [get_filesets sim_1]
+set_property top tb_dot_product_parallel_python_vectors $fs
+set_property top_lib xil_defaultlib $fs
+set_property xsim.simulate.custom_tcl $wave_tcl $fs
+set_property xsim.simulate.runtime all $fs
+catch { set_property xsim.view {} $fs }
+
+puts "top         = [get_property top $fs]"
+puts "custom_tcl  = [get_property xsim.simulate.custom_tcl $fs]"
+puts "runtime     = [get_property xsim.simulate.runtime $fs]"
+
+close_project
+puts "INFO: Task D sim properties applied."

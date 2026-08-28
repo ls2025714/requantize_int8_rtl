@@ -1,0 +1,25 @@
+# Vivado 自动生成（体积大，勿提交）
+requantize_int8_rtl.cache/
+requantize_int8_rtl.runs/
+requantize_int8_rtl.sim/
+requantize_int8_rtl.hw/
+requantize_int8_rtl.ip_user_files/
+
+# 波形 / 仿真产物
+*.wdb
+*.vcd
+*.jou
+*.log
+*.pb
+*.backup.log
+
+# Python
+__pycache__/
+*.pyc
+
+# 临时脚本
+scripts/_add_sv_headers.py
+scripts/_annotate_sv.py
+
+# IDE
+.cursor/

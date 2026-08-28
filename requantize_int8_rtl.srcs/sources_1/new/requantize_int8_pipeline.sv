@@ -1,3 +1,14 @@
+// ============================================================================
+// 文件: requantize_int8_pipeline.sv
+// 阶段: 量化
+// 作用: 2 拍流水线版 requantize，in_valid 到 out_valid 固定延迟
+// 验证: tb_requantize_int8_pipeline.sv
+// ============================================================================
+
+// 2 级流水，与组合版 requantize_int8 数学一致:
+//   S1: product = acc_i * multiplier_i（mult 为 18-bit 无符号）
+//   S2: round half away from zero + 算术右移 SHIFT_BITS + 对称饱和 [-127,127]
+// out_valid 比 in_valid 延迟 2 拍（TB 用 valid_history 检查）
 module requantize_int8_pipeline #(
     parameter int SHIFT_BITS = 24
 ) (

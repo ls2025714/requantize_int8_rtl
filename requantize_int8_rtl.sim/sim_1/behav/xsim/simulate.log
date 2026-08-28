@@ -1,75 +1,207 @@
 Time resolution is 1 ps
-PASS case=1 all_positive_full result=68 latency=2 keep=1111
-PASS case=2 mixed_sign_full result=-56 latency=2 keep=1111
-PASS case=3 max_positive result=64516 latency=2 keep=1111
-PASS case=4 min_negative_product result=32768 latency=2 keep=0011
-PASS case=5 single_lane0 result=35 latency=2 keep=0001
-PASS case=6 tail_keep_0111 result=200 latency=2 keep=0111
-PASS case=7 invalid_lanes_zeroed result=140 latency=2 keep=0101
-PASS case=8 all_invalid result=0 latency=2 keep=0000
-PASS case=9 negative_only result=70 latency=2 keep=1111
-PASS case=10 single_negative_edge result=16384 latency=2 keep=0001
-PASS continuous: 8 beats, 1 beat/cycle, PARTIAL_LATENCY=2
-PASS continuous acc result=-79
-PASS bubble: 3 beats with idle gaps, valid aligned
-PASS acc latency=3 value=-5
---------------------------------------------------
-PARTIAL_LATENCY = 2
-ACC_LATENCY     = 3
-test_count      = 14
-mismatch_count  = 0
-TEST RESULT: PASS
---------------------------------------------------
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-The current simulation has finished. Please use 'restart' to begin a new simulation.
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
-PASS case=1 all_positive_full result=68 latency=2 keep=1111
-PASS case=2 mixed_sign_full result=-56 latency=2 keep=1111
-PASS case=3 max_positive result=64516 latency=2 keep=1111
-PASS case=4 min_negative_product result=32768 latency=2 keep=0011
-PASS case=5 single_lane0 result=35 latency=2 keep=0001
-PASS case=6 tail_keep_0111 result=200 latency=2 keep=0111
-PASS case=7 invalid_lanes_zeroed result=140 latency=2 keep=0101
-PASS case=8 all_invalid result=0 latency=2 keep=0000
-PASS case=9 negative_only result=70 latency=2 keep=1111
-PASS case=10 single_negative_edge result=16384 latency=2 keep=0001
-PASS continuous: 8 beats, 1 beat/cycle, PARTIAL_LATENCY=2
-PASS continuous acc result=-79
-PASS bubble: 3 beats with idle gaps, valid aligned
-PASS acc latency=3 value=-5
---------------------------------------------------
-PARTIAL_LATENCY = 2
-ACC_LATENCY     = 3
-test_count      = 14
-mismatch_count  = 0
-TEST RESULT: PASS
---------------------------------------------------
-$finish called at time : 1546 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_dot_product_parallel.sv" Line 498
+Preload QKV_WEIGHT (12288 items)...
+  QKV_WEIGHT 4096/12288
+  QKV_WEIGHT 8192/12288
+  QKV_WEIGHT 12288/12288
+Preload QKV_WEIGHT done.
+Preload QKV_MULT (192 items)...
+Preload QKV_MULT done.
+Preload WO_WEIGHT (4096 items)...
+  WO_WEIGHT 4096/4096
+Preload WO_WEIGHT done.
+Preload WO_MULT (64 items)...
+Preload WO_MULT done.
+Preload FFN_GATE_WEIGHT (16384 items)...
+  FFN_GATE_WEIGHT 4096/16384
+  FFN_GATE_WEIGHT 8192/16384
+  FFN_GATE_WEIGHT 12288/16384
+  FFN_GATE_WEIGHT 16384/16384
+Preload FFN_GATE_WEIGHT done.
+Preload FFN_GATE_MULT (256 items)...
+Preload FFN_GATE_MULT done.
+Preload FFN_UP_WEIGHT (16384 items)...
+  FFN_UP_WEIGHT 4096/16384
+  FFN_UP_WEIGHT 8192/16384
+  FFN_UP_WEIGHT 12288/16384
+  FFN_UP_WEIGHT 16384/16384
+Preload FFN_UP_WEIGHT done.
+Preload FFN_UP_MULT (256 items)...
+Preload FFN_UP_MULT done.
+Preload FFN_DOWN_WEIGHT (16384 items)...
+  FFN_DOWN_WEIGHT 4096/16384
+  FFN_DOWN_WEIGHT 8192/16384
+  FFN_DOWN_WEIGHT 12288/16384
+  FFN_DOWN_WEIGHT 16384/16384
+Preload FFN_DOWN_WEIGHT done.
+Preload FFN_DOWN_MULT (64 items)...
+Preload FFN_DOWN_MULT done.
+CASE 1 seq=1 — cmd/x/out...
+PASS c=1 i=0 out=122
+PASS c=1 i=1 out=-3
+PASS c=1 i=2 out=127
+PASS c=1 i=3 out=67
+PASS c=1 i=4 out=127
+PASS c=1 i=5 out=-15
+PASS c=1 i=6 out=-67
+PASS c=1 i=7 out=54
+PASS c=1 i=8 out=-117
+PASS c=1 i=9 out=55
+PASS c=1 i=10 out=-7
+PASS c=1 i=11 out=99
+PASS c=1 i=12 out=-44
+PASS c=1 i=13 out=36
+PASS c=1 i=14 out=-66
+PASS c=1 i=15 out=-100
+PASS c=1 i=16 out=-12
+PASS c=1 i=17 out=42
+PASS c=1 i=18 out=-41
+PASS c=1 i=19 out=-127
+PASS c=1 i=20 out=109
+PASS c=1 i=21 out=-30
+PASS c=1 i=22 out=62
+PASS c=1 i=23 out=110
+PASS c=1 i=24 out=88
+PASS c=1 i=25 out=-54
+PASS c=1 i=26 out=-127
+PASS c=1 i=27 out=-78
+PASS c=1 i=28 out=-54
+PASS c=1 i=29 out=2
+PASS c=1 i=30 out=13
+PASS c=1 i=31 out=21
+PASS c=1 i=32 out=-87
+PASS c=1 i=33 out=-46
+PASS c=1 i=34 out=111
+PASS c=1 i=35 out=63
+PASS c=1 i=36 out=14
+PASS c=1 i=37 out=100
+PASS c=1 i=38 out=127
+PASS c=1 i=39 out=-127
+PASS c=1 i=40 out=-95
+PASS c=1 i=41 out=-13
+PASS c=1 i=42 out=13
+PASS c=1 i=43 out=-23
+PASS c=1 i=44 out=-17
+PASS c=1 i=45 out=127
+PASS c=1 i=46 out=10
+PASS c=1 i=47 out=-52
+PASS c=1 i=48 out=-76
+PASS c=1 i=49 out=-59
+PASS c=1 i=50 out=127
+PASS c=1 i=51 out=-29
+PASS c=1 i=52 out=48
+PASS c=1 i=53 out=23
+PASS c=1 i=54 out=42
+PASS c=1 i=55 out=-15
+PASS c=1 i=56 out=-97
+PASS c=1 i=57 out=98
+PASS c=1 i=58 out=127
+PASS c=1 i=59 out=44
+PASS c=1 i=60 out=127
+PASS c=1 i=61 out=-25
+PASS c=1 i=62 out=-112
+PASS c=1 i=63 out=127
+TEST RESULT: PASS 1/1 EXACT
+$finish called at time : 2716160 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_transformer_block.sv" Line 172
+Preload QKV_WEIGHT (12288 items)...
+  QKV_WEIGHT 4096/12288
+  QKV_WEIGHT 8192/12288
+  QKV_WEIGHT 12288/12288
+Preload QKV_WEIGHT done.
+Preload QKV_MULT (192 items)...
+Preload QKV_MULT done.
+Preload WO_WEIGHT (4096 items)...
+  WO_WEIGHT 4096/4096
+Preload WO_WEIGHT done.
+Preload WO_MULT (64 items)...
+Preload WO_MULT done.
+Preload FFN_GATE_WEIGHT (16384 items)...
+  FFN_GATE_WEIGHT 4096/16384
+  FFN_GATE_WEIGHT 8192/16384
+  FFN_GATE_WEIGHT 12288/16384
+  FFN_GATE_WEIGHT 16384/16384
+Preload FFN_GATE_WEIGHT done.
+Preload FFN_GATE_MULT (256 items)...
+Preload FFN_GATE_MULT done.
+Preload FFN_UP_WEIGHT (16384 items)...
+  FFN_UP_WEIGHT 4096/16384
+  FFN_UP_WEIGHT 8192/16384
+  FFN_UP_WEIGHT 12288/16384
+  FFN_UP_WEIGHT 16384/16384
+Preload FFN_UP_WEIGHT done.
+Preload FFN_UP_MULT (256 items)...
+Preload FFN_UP_MULT done.
+Preload FFN_DOWN_WEIGHT (16384 items)...
+  FFN_DOWN_WEIGHT 4096/16384
+  FFN_DOWN_WEIGHT 8192/16384
+  FFN_DOWN_WEIGHT 12288/16384
+  FFN_DOWN_WEIGHT 16384/16384
+Preload FFN_DOWN_WEIGHT done.
+Preload FFN_DOWN_MULT (64 items)...
+Preload FFN_DOWN_MULT done.
+CASE 1 seq=1 — cmd/x/out...
+PASS c=1 i=0 out=122
+PASS c=1 i=1 out=-3
+PASS c=1 i=2 out=127
+PASS c=1 i=3 out=67
+PASS c=1 i=4 out=127
+PASS c=1 i=5 out=-15
+PASS c=1 i=6 out=-67
+PASS c=1 i=7 out=54
+PASS c=1 i=8 out=-117
+PASS c=1 i=9 out=55
+PASS c=1 i=10 out=-7
+PASS c=1 i=11 out=99
+PASS c=1 i=12 out=-44
+PASS c=1 i=13 out=36
+PASS c=1 i=14 out=-66
+PASS c=1 i=15 out=-100
+PASS c=1 i=16 out=-12
+PASS c=1 i=17 out=42
+PASS c=1 i=18 out=-41
+PASS c=1 i=19 out=-127
+PASS c=1 i=20 out=109
+PASS c=1 i=21 out=-30
+PASS c=1 i=22 out=62
+PASS c=1 i=23 out=110
+PASS c=1 i=24 out=88
+PASS c=1 i=25 out=-54
+PASS c=1 i=26 out=-127
+PASS c=1 i=27 out=-78
+PASS c=1 i=28 out=-54
+PASS c=1 i=29 out=2
+PASS c=1 i=30 out=13
+PASS c=1 i=31 out=21
+PASS c=1 i=32 out=-87
+PASS c=1 i=33 out=-46
+PASS c=1 i=34 out=111
+PASS c=1 i=35 out=63
+PASS c=1 i=36 out=14
+PASS c=1 i=37 out=100
+PASS c=1 i=38 out=127
+PASS c=1 i=39 out=-127
+PASS c=1 i=40 out=-95
+PASS c=1 i=41 out=-13
+PASS c=1 i=42 out=13
+PASS c=1 i=43 out=-23
+PASS c=1 i=44 out=-17
+PASS c=1 i=45 out=127
+PASS c=1 i=46 out=10
+PASS c=1 i=47 out=-52
+PASS c=1 i=48 out=-76
+PASS c=1 i=49 out=-59
+PASS c=1 i=50 out=127
+PASS c=1 i=51 out=-29
+PASS c=1 i=52 out=48
+PASS c=1 i=53 out=23
+PASS c=1 i=54 out=42
+PASS c=1 i=55 out=-15
+PASS c=1 i=56 out=-97
+PASS c=1 i=57 out=98
+PASS c=1 i=58 out=127
+PASS c=1 i=59 out=44
+PASS c=1 i=60 out=127
+PASS c=1 i=61 out=-25
+PASS c=1 i=62 out=-112
+PASS c=1 i=63 out=127
+TEST RESULT: PASS 1/1 EXACT
+$finish called at time : 2716160 ns : File "F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/requantize_int8_rtl.srcs/sim_1/new/tb_int8_transformer_block.sv" Line 172

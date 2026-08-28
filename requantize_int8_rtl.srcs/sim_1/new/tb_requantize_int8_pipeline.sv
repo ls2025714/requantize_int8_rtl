@@ -1,3 +1,10 @@
+// ============================================================================
+// TB: tb_requantize_int8_pipeline.sv
+// 测:  requantize_int8_pipeline
+// 作用: 12 case + out_valid 相对 in_valid 2 拍延迟检查
+// ============================================================================
+
+// 12 组向量 + 检查 out_valid 比 in_valid 延迟 2 拍
 `timescale 1ns / 1ps
 module tb_requantize_int8_pipeline;
 logic clk;
