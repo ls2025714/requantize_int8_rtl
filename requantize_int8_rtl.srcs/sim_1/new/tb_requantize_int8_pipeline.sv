@@ -1,10 +1,13 @@
 // ============================================================================
-// TB: tb_requantize_int8_pipeline.sv
-// 测:  requantize_int8_pipeline
-// 作用: 12 case + out_valid 相对 in_valid 2 拍延迟检查
+// 文件: tb_requantize_int8_pipeline.sv
+// 阶段: 量化
+// 作用: 定向测试流水重量化输出与 2 拍延迟
+// DUT: requantize_int8_pipeline
+// 向量: 内联 12 case（acc / multiplier / expected INT8）
 // ============================================================================
-
-// 12 组向量 + 检查 out_valid 比 in_valid 延迟 2 拍
+//
+// 流程: 注入 in_valid+acc+mult → 核对 out_i；检查 out_valid 相对 in_valid 延迟 2 拍
+//
 `timescale 1ns / 1ps
 module tb_requantize_int8_pipeline;
 logic clk;

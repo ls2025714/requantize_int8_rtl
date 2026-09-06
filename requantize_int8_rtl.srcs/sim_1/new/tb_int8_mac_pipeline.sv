@@ -1,10 +1,13 @@
 // ============================================================================
-// TB: tb_int8_mac_pipeline.sv
-// 测:  int8_mac_pipeline
-// 作用: 从 mac_control_vectors.txt 读入控制与期望 acc
+// 文件: tb_int8_mac_pipeline.sv
+// 阶段: 基础
+// 作用: 对拍流水 MAC 控制序列与期望 acc
+// DUT: int8_mac_pipeline
+// 向量: mac_control_vectors.txt
 // ============================================================================
-
-// 从 mac_control_vectors.txt 读入：clear/enable/in_valid/activation/weight/期望 acc
+//
+// 流程: 逐行读 clear/enable/in_valid/activation/weight/期望 → 驱动 DUT → 核对 out_valid/acc
+//
 `timescale 1ns/1ps
 module tb_int8_mac_pipeline;
 localparam int INPUT_WIDTH = 8;

@@ -1,13 +1,15 @@
 // ============================================================================
 // 文件: int8_mac_pipeline.sv
-// 阶段: 基础
-// 作用: 1 级流水线 MAC，每拍可喂一对 activation/weight
-// 验证: tb_int8_mac_pipeline.sv
+// 学习阶段: D1 基线 — 1 级流水 MAC
+// ----------------------------------------------------------------------------
+// 【相对组合 MAC】把「乘法」与「累加」拆开一拍，吞吐可接近 1 对/拍
+//   S1: 寄存 product + valid_s1
+//   下一拍: valid_s1 为真时 acc += product
+// clear 清零乘积寄存器 / valid / acc；enable=0 时保持 acc、拉低 out_valid
+// 【被谁用】dot_product_int8（串行点积）实例化本模块
+// 【验证】tb_int8_mac_pipeline.sv
 // ============================================================================
-
-// 流水线: S1 寄存乘积 + valid_s1；下一拍 valid_s1 为真时累加到 acc_out
-// clear 时清零乘积寄存器、valid、acc_out
-// enable=0 时保持 acc，out_valid 拉低
+//
 module int8_mac_pipeline #(
     parameter int INPUT_WIDTH = 8,
     parameter int ACC_WIDTH   = 32

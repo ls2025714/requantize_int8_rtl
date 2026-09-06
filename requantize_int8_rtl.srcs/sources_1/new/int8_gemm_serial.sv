@@ -1,15 +1,15 @@
 // ============================================================================
 // 文件: int8_gemm_serial.sv
-// 阶段: 串行 GEMM baseline
-// 作用: M×N×K 矩阵乘控制器，内部串行点积，C 元素 INT32 输出
-// 验证: tb_int8_gemm_serial.sv
+// 学习阶段: D1/D3 前 — 串行 GEMM baseline（对照用，保持不改）
+// ----------------------------------------------------------------------------
+// 【数学】C[M×N] = A[M×K] × B[K×N]，C 元素为 INT32
+// 【本质】控制器 + 串行点积：对每个 (i,j) 发一次长度 K 的点积
+// 【FSM】IDLE→LOAD_A→LOAD_B→(每元素) DOT_CMD→DOT_FEED→DOT_WAIT→OUTPUT_C
+//   A 行优先；B 读列时地址沿 +N 走
+// 【对比】int8_gemm_parallel：DOT_FEED 改为每拍 4 lane
+// 【验证】tb_int8_gemm_serial.sv（24 组回归）
 // ============================================================================
-
-// 计算 C[M×N] = A[M×K] × B[K×N]，行优先存 a_mem / b_mem
-// FSM: IDLE → LOAD_A → LOAD_B → (对每个 C[i][j]) DOT_CMD → DOT_FEED → DOT_WAIT → OUTPUT_C
-// DOT_FEED: 每拍读 a_mem[a_read_addr] 与 b_mem[b_read_addr]
-//   A 地址沿行 +1；B 地址沿列 +N（b_read_addr += n_reg）
-// 输出: 每个 C 元素 INT32，带 c_row/c_col
+//
 module int8_gemm_serial #(
     parameter int INPUT_WIDTH = 8,
     parameter int ACC_WIDTH = 32,
@@ -117,6 +117,7 @@ dot_product_int8 #(
     .m_ready(dot_m_ready),
     .m_result(dot_m_result)
 );
+// --- 主 FSM：LOAD_A/B + 逐 C[i][j] 串行点积 ---
 always_ff @(posedge clk) begin
     if (!rst_n) begin
         state        <= IDLE;

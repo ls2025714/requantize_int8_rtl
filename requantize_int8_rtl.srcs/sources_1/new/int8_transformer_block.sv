@@ -1,6 +1,37 @@
 // ============================================================================
-// int8_transformer_block.sv — D12 E2E transformer block (seq=1 path verified)
+// 文件: int8_transformer_block.sv
+// 学习阶段: D12 单层 Transformer Block E2E（学习计划终点）
+// ----------------------------------------------------------------------------
+// 【定位】把 D6～D11 已关账子模块串成一条流水：预载 → Attention → FFN → 输出
+//   规格: n_embd=64, n_head=4, head_dim=16, d_ff=256；E2E 已验 seq=1
+//   CLI: scripts/run_transformer_block_xsim.bat；seed=20260908，1/1 EXACT
+//
+// 【大状态 st 人话顺序】
+//   PRE_*     依次预载 QKV / Wo / gate / up / down 的 WEIGHT 与 MULT（必须进 case，勿掉 default）
+//   IDLE      等 cmd_seq（预载完成后）
+//   LOAD_X    收输入激活 → x_mem
+//   Q/K/V     复用 qkv tiled linear，按 head_r=0..3 各算 [seq,16]
+//   SCORE     调 int8_score_gemm：Q@K^T → score_mem INT32
+//   SOFT      调 int8_softmax_causal → prob_mem UQ1.15
+//   ATTN      调 int8_attn_v：P@V → attn_mem
+//   CONCAT    4 个 head 拼成 [seq,64] → concat_mem
+//   WO        tiled linear 输出投影 → wo_mem
+//   RES1      residual(x, wo) → res1_mem
+//   GATE/UP   SwiGLU 两路宽线性（64→256）
+//   SILU      SiLU(gate)；ELMUL: silu×up；DOWN: 256→64
+//   RES2      residual(res1, ffn) → out_mem
+//   OUTPUT    流式吐出
+//
+// 【子状态 ls】复用于 Linear / Score / Soft / Attn / Res / SiLU / Mul：
+//   LS_IDLE → LS_CMD（发命令；l_cmd_v 仅在此）→ LS_FEED（灌数据）→ LS_COLLECT（收结果）
+//
+// 【学习踩坑摘要】（详见 NOTES.md D12）
+//   - ST_PRE_* 必须出现在 unique case，否则 default→IDLE 死锁
+//   - feed 侧 data+地址与 valid 同拍组合驱动
+//   - SiLU 一进一出；Residual 的 z_ready 在 COLLECT 保持高
+//   - Golden 用 frozen weight/mult bank，勿重算 scale
 // ============================================================================
+//
 module int8_transformer_block #(
     parameter int INPUT_WIDTH = 8,
     parameter int ACC_WIDTH   = 32,
@@ -49,12 +80,20 @@ module int8_transformer_block #(
     output logic signed [INPUT_WIDTH-1:0] out_data,
     output logic [IDX_WIDTH-1:0]          out_idx
 );
+    // ---- 大 FSM 状态（学习对照表）----
+    // PRE_*_W/M : 预载对应银行的权重 / scale（成对出现）
+    // IDLE/LOAD_X : 等命令 / 收激活
+    // Q,K,V : D7 风格按 head 跑 tiled linear
+    // SCORE/SOFT/ATTN : D8/D9/D10
+    // CONCAT/WO/RES1 : 拼 head → 输出投影 → 残差1
+    // GATE/UP/SILU/ELMUL/DOWN/RES2 : SwiGLU + 残差2
+    // OUTPUT : 吐最终 INT8
     typedef enum logic [5:0] {
-        ST_PRE_QKV_W, ST_PRE_QKV_M,
-        ST_PRE_WO_W,  ST_PRE_WO_M,
-        ST_PRE_FG_W,  ST_PRE_FG_M,
-        ST_PRE_FU_W,  ST_PRE_FU_M,
-        ST_PRE_FD_W,  ST_PRE_FD_M,
+        ST_PRE_QKV_W, ST_PRE_QKV_M,   // QKV 权重银行 + mult
+        ST_PRE_WO_W,  ST_PRE_WO_M,    // Wo
+        ST_PRE_FG_W,  ST_PRE_FG_M,    // FFN gate（宽）
+        ST_PRE_FU_W,  ST_PRE_FU_M,    // FFN up
+        ST_PRE_FD_W,  ST_PRE_FD_M,    // FFN down
         ST_IDLE, ST_LOAD_X,
         ST_Q, ST_K, ST_V,
         ST_SCORE, ST_SOFT, ST_ATTN,
@@ -62,17 +101,19 @@ module int8_transformer_block #(
         ST_RES1, ST_GATE, ST_UP, ST_SILU, ST_ELMUL, ST_DOWN, ST_RES2, ST_OUTPUT
     } blk_state_t;
 
+    // 子阶段：发命令 → 喂数 → 收结果（Linear/Score/Soft/Attn/Res/SiLU/Mul 共用骨架）
     typedef enum logic [1:0] {LS_IDLE, LS_CMD, LS_FEED, LS_COLLECT} ls_t;
 
     blk_state_t st;
     ls_t ls;
     logic [SEQ_WIDTH-1:0] seq_r;
-    logic [1:0] head_r;
-    logic [IDX_WIDTH-1:0] idx_r;
+    logic [1:0] head_r;                 // 当前 head 0..3
+    logic [IDX_WIDTH-1:0] idx_r;        // 通用流计数
     logic [IDX_WIDTH-1:0] score_total;
-    logic [17:0] pre_cnt;
+    logic [17:0] pre_cnt;               // 预载还剩多少个
     logic preload_done;
 
+    // ---- 片上中间张量（Buffer 生命周期：写入阶段后只读）----
     logic signed [7:0] x_mem [0:MAX_SEQ-1][0:EMBD-1];
     logic signed [7:0] q_mem [0:NUM_HEADS-1][0:MAX_SEQ-1][0:HEAD_DIM-1];
     logic signed [7:0] k_mem [0:NUM_HEADS-1][0:MAX_SEQ-1][0:HEAD_DIM-1];
@@ -160,6 +201,7 @@ module int8_transformer_block #(
     logic signed [7:0] em_a_d, em_b_d, em_z_d;
     logic [IDX_WIDTH-1:0] em_z_i;
 
+    // --- 预载完成 / 写口 mux ---
     assign preload_done = (st == ST_IDLE);
     assign cmd_ready = preload_done && (ls == LS_IDLE);
     assign w_ready = (st == ST_PRE_QKV_W) ? qkv_w_r :
@@ -175,6 +217,7 @@ module int8_transformer_block #(
 
     assign score_total = IDX_WIDTH'(seq_r) * IDX_WIDTH'(HEAD_DIM);
 
+    // --- 各阶段 linear cmd 维度 (N/K/op) ---
     always_comb begin
         l_cmd_m    = seq_r;
         l_cmd_n    = 9'd16;
@@ -192,6 +235,7 @@ module int8_transformer_block #(
         endcase
     end
 
+    // --- 阶段使能 / 子模块握手 mux ---
     assign act_qkv   = st inside {ST_Q, ST_K, ST_V};
     assign act_wo    = (st == ST_WO);
     assign act_gate  = (st == ST_GATE);
@@ -253,7 +297,7 @@ module int8_transformer_block #(
     assign em_b_v   = act_emul && (ls == LS_COLLECT) && !em_z_v;
     assign em_z_r   = act_emul && (ls == LS_COLLECT);
 
-    // Feed-side payload must be combinational with *_valid (no 1-cycle NBA lag).
+    // --- FEED 侧组合数据（须与 *_valid 同拍，禁止 NBA 滞后）---
     always_comb begin
         l_a_d = '0;
         if (ls == LS_FEED) begin
@@ -347,6 +391,7 @@ module int8_transformer_block #(
         end
     end
 
+    // --- 子模块实例：QKV / Wo / FFN / Attn / Residual / SiLU / ElemMul ---
     int8_linear_tiled #(.MAX_M(MAX_SEQ), .FULL_N(16), .FULL_K(64), .NUM_OPS(3), .NUM_HEADS(4),
         .WEIGHT_DEPTH(QKV_WEIGHT_DEPTH), .MULT_DEPTH(QKV_MULT_DEPTH)) u_qkv (
         .clk(clk), .rst_n(rst_n),
@@ -458,6 +503,7 @@ module int8_transformer_block #(
         return IDX_WIDTH'(s) * IDX_WIDTH'(D_FF);
     endfunction
 
+    // --- 主 FSM：预载计数 + 各计算阶段 ---
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             st <= ST_PRE_QKV_W; ls <= LS_IDLE; seq_r <= '0; head_r <= '0;
@@ -466,7 +512,7 @@ module int8_transformer_block #(
         end else begin
             x_ready <= 1'b0; out_valid <= 1'b0;
 
-            // preload counter
+            // --- 预载：依次灌 QKV/Wo/gate/up/down 的 weight 与 mult ---
             if (st == ST_PRE_QKV_W && w_valid && w_ready) begin
                 if (pre_cnt <= 18'd1) begin st <= ST_PRE_QKV_M; pre_cnt <= QKV_MULT_DEPTH[17:0]; end
                 else pre_cnt <= pre_cnt - 18'd1;
@@ -500,11 +546,13 @@ module int8_transformer_block #(
             end
 
             unique case (st)
+                // 预载完成后：收 cmd，开始装 X
                 ST_IDLE: if (cmd_valid && cmd_ready) begin
                     seq_r <= cmd_seq; head_r <= '0; idx_r <= '0;
                     ls <= LS_IDLE; st <= ST_LOAD_X;
                 end
 
+                // 流式写入 x_mem；满后进入 ST_Q（head0）
                 ST_LOAD_X: begin
                     x_ready <= 1'b1;
                     if (x_valid && x_ready) begin
@@ -514,6 +562,7 @@ module int8_transformer_block #(
                     end
                 end
 
+                // Linear 族共用：CMD→FEED→COLLECT；Q/K/V 还要扫 head_r
                 ST_Q, ST_K, ST_V, ST_WO, ST_GATE, ST_UP, ST_DOWN: begin
                     unique case (ls)
                         LS_IDLE, LS_CMD: if (l_cmd_v && l_cmd_r) begin ls <= LS_FEED; idx_r <= '0; end
@@ -551,6 +600,7 @@ module int8_transformer_block #(
                     endcase
                 end
 
+                // D8: 灌 Q 再灌 K，收集 Score INT32
                 ST_SCORE: begin
                     unique case (ls)
                         LS_IDLE, LS_CMD: if (sc_cmd_v && sc_cmd_r) begin ls <= LS_FEED; idx_r <= '0; end
@@ -574,6 +624,7 @@ module int8_transformer_block #(
                     endcase
                 end
 
+                // D9 Softmax：灌 Score，收集概率 → ST_ATTN
                 ST_SOFT: unique case (ls)
                     LS_IDLE, LS_CMD: if (sm_cmd_v && sm_cmd_r) begin ls <= LS_FEED; idx_r <= '0; end
                     LS_FEED: begin
@@ -590,6 +641,7 @@ module int8_transformer_block #(
                     default: ls <= LS_IDLE;
                 endcase
 
+                // D10 Attn@V：先灌 P 再灌 V；本 head 完后若还有 head → 回 ST_SCORE
                 ST_ATTN: unique case (ls)
                     LS_IDLE, LS_CMD: if (av_cmd_v && av_cmd_r) begin ls <= LS_FEED; idx_r <= '0; end
                     LS_FEED: begin
@@ -614,6 +666,7 @@ module int8_transformer_block #(
                     default: ls <= LS_IDLE;
                 endcase
 
+                // 4 head × 16 → 拼成 [seq,64]，然后 ST_WO
                 ST_CONCAT: begin
                     for (int t = 0; t < MAX_SEQ; t++)
                         for (int h = 0; h < NUM_HEADS; h++)
@@ -622,6 +675,7 @@ module int8_transformer_block #(
                     ls <= LS_CMD; st <= ST_WO;
                 end
 
+                // D11 残差：RES1 后进 GATE；RES2 后进 OUTPUT
                 ST_RES1, ST_RES2: unique case (ls)
                     LS_IDLE: begin
                         ls    <= LS_CMD;
@@ -655,6 +709,7 @@ module int8_transformer_block #(
                     default: ls <= LS_IDLE;
                 endcase
 
+                // SiLU(gate)，结果写回 gate_mem → ST_ELMUL
                 ST_SILU: unique case (ls)
                     LS_IDLE, LS_CMD: begin ls <= LS_FEED; idx_r <= '0; end
                     LS_FEED: begin
@@ -673,6 +728,7 @@ module int8_transformer_block #(
                     default: ls <= LS_IDLE;
                 endcase
 
+                // silu(gate)×up → hidden_mem → ST_DOWN
                 ST_ELMUL: unique case (ls)
                     LS_IDLE: begin ls <= LS_CMD; idx_r <= '0; end
                     LS_CMD: if (em_cmd_v && em_cmd_r) begin ls <= LS_FEED; idx_r <= '0; end
@@ -689,6 +745,7 @@ module int8_transformer_block #(
                     default: ls <= LS_IDLE;
                 endcase
 
+                // 流式吐出 out_mem；握手接受时立刻更新下一拍 data/idx（防旧数据）
                 ST_OUTPUT: begin
                     if (out_valid && out_ready) begin
                         if (idx_r == f_embd_len(seq_r)-1) begin
@@ -708,6 +765,7 @@ module int8_transformer_block #(
                     end
                 end
 
+                // PRE_* 进度在上方 if 链推进；此处占位避免掉进 default→IDLE
                 ST_PRE_QKV_W, ST_PRE_QKV_M,
                 ST_PRE_WO_W,  ST_PRE_WO_M,
                 ST_PRE_FG_W,  ST_PRE_FG_M,

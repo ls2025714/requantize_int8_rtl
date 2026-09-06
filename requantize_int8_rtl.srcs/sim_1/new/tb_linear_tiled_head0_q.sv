@@ -1,9 +1,14 @@
 // ============================================================================
-// TB: tb_linear_tiled_head0_q.sv
-// 测:  int8_linear_tiled
-// 作用: D6 — 读 tiled_head0_q_vectors.txt，head0 整层 Q (N=16 K=64)
+// 文件: tb_linear_tiled_head0_q.sv
+// 阶段: D6
+// 作用: 对拍 tiled linear head0 整层 Q（N=16 K=64）
+// DUT: int8_linear_tiled
+// 向量: tiled_head0_q_vectors.txt（seed=20260830，4 case）
+// CLI: scripts/run_tiled_head0_q_xsim.bat
 // ============================================================================
-
+//
+// 流程: preload WEIGHT/MULT → cmd → stream A → receive INT8 C；核对 seed/case 数
+//
 `timescale 1ns/1ps
 
 module tb_linear_tiled_head0_q;

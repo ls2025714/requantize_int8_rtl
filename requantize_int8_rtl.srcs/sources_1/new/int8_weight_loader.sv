@@ -1,16 +1,14 @@
 // ============================================================================
 // 文件: int8_weight_loader.sv
-// 阶段: D4 权重加载
-// 作用: 小 RAM — w 口预存权重，replay 口按序回放给 GEMM LOAD_B
-// 验证: tb_linear_int8_python_vectors.sv（间接）
+// 学习阶段: D4 权重 RAM；D6/D7 扩展 DEPTH + replay_base_addr
+// ----------------------------------------------------------------------------
+// 【干什么】IDLE 时用 w_* 顺序写入 mem；计算时用 replay_* 按段吐给 GEMM 当 B
+//   回放中 w_ready=0；仅 r_valid&&r_ready 推进读指针（与 LOAD_B 握手对齐）
+// 【D6/D7】replay_base_addr 从任意基址起吐 length 个
+//   D4 常 DEPTH=64、base=0；D6 head 块 1024；D7 QKV 全库 12288
+// 【验证】经 linear / tiled TB 间接验证
 // ============================================================================
-
-// 写口 w_*: 预加载权重到 mem[]，replay 期间 w_ready=0
-// 读口 r_*: replay_start 脉冲后，按 replay_length 顺序输出
-//   仅在 r_valid && r_ready 时 r_addr++（与 GEMM LOAD_B 握手对齐）
-// 回放结束: replay_active=0，w_wr_addr 复位以便下一 case 重写
-// D6/D7: replay_base_addr — 从 mem[base+0..length-1] 顺序回放
-//   D6 DEPTH=1024（单 head）；D7 DEPTH=12288（Q/K/V × 4 head）
+//
 module int8_weight_loader #(
     parameter int INPUT_WIDTH = 8,
     parameter int MAX_K       = 16,

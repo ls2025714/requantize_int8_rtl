@@ -1,9 +1,14 @@
 // ============================================================================
-// TB: tb_linear_tiled_qkv.sv
-// 测:  int8_linear_tiled
-// 作用: D7 — 读 tiled_qkv_vectors.txt；一次 preload QKV 银行后按 op/head 切换基地址
+// 文件: tb_linear_tiled_qkv.sv
+// 阶段: D7
+// 作用: 对拍 tiled Q/K/V 多 head（一次 preload 后按 op/head 切基地址）
+// DUT: int8_linear_tiled
+// 向量: tiled_qkv_vectors.txt（seed=20260831，5 case）
+// CLI: scripts/run_tiled_qkv_xsim.bat
 // ============================================================================
-
+//
+// 流程: 一次 preload QKV 银行 → 按 cmd_op_type/cmd_head_idx 切换 → stream A → INT8 C 对拍
+//
 `timescale 1ns/1ps
 
 module tb_linear_tiled_qkv;

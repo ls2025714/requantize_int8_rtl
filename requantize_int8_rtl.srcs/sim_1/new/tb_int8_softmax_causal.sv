@@ -1,5 +1,15 @@
+// ============================================================================
+// 文件: tb_int8_softmax_causal.sv
+// 阶段: D9
+// 作用: 对拍因果 Softmax（scale + mask + 定点 P）
+// DUT: int8_softmax_causal
+// 向量: softmax_causal_vectors.txt（seed=20260902，6 case）
+// CLI: scripts/run_softmax_causal_xsim.bat
+// ============================================================================
+//
+// 流程: send_cmd(seq) → stream score(in_row/col) → receive out_data/out_row/out_col 对拍
+//
 `timescale 1ns/1ps
-// D9 TB: tb_int8_softmax_causal.sv
 
 module tb_int8_softmax_causal;
     localparam int ACC_WIDTH = 32;

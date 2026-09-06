@@ -1,12 +1,30 @@
 // ============================================================================
 // 文件: int8_linear_tiled.sv
-// 阶段: D6 Full Tile + D7 Q/K/V 多 Head 基地址
-// 作用: 外层 FSM 调度 16 个 M×4×16 子 GEMM，K 维 INT32 累加后再 requantize
-//       D7: cmd_op_type / cmd_head_idx → region_base / mult_base
-// 依赖: int8_gemm_parallel, int8_weight_loader, requantize_int8_pipeline
-// 验证: tb_linear_tiled_head0_q.sv（D6）、tb_linear_tiled_qkv.sv（D7）
+// 学习阶段: D6 Full Tile + D7 Q/K/V 多 Head（同一文件演进出，非外包一层）
+// ----------------------------------------------------------------------------
+// 【学习定位】
+//   D4 int8_linear_layer: 小矩阵一次 GEMM 完立刻 requant（不能直接撑 N=16,K=64）
+//   D6: 本模块切成 16 个 M×4×16；跨 K-tile 用 acc_mem INT32 累加后再量化
+//   D7: 仍用本模块；cmd_op_type/cmd_head_idx 换权重与 scale 基址（一份电路服务 3×4 区）
+//   可读对照（勿综合）: docs/learn/int8_linear_tiled_readable.sv
+//
+// 【人话双重循环】
+//   预载 WEIGHT + MULT；收满 A → a_buf
+//   for n_tile in 0..3:          // 输出列组，n_base = n_tile*4
+//       clear acc_mem
+//       for k_tile in 0..3:      // K 段，k_base = k_tile*16
+//           replay 权重块 tile_idx；GEMM(M,4,16)；acc += partial
+//       requantize 本组 4 列 → INT8
+//
+// 【D7 基址】
+//   region = op*4096 + head*1024；replay_base = region + tile_idx*64
+//   mult_base = op*64 + head*16；量化读 mult_mem[mult_base + 全局列]
+//   op: 0=WQ,1=WK,2=WV；head: 0..3。D6 等价 op=0,head=0 → region=0
+//
+// 【FSM】IDLE→LOAD_A→START→RUN→(下一 k/n)→REQ_*→DONE
+// 【验证】D6: tb_linear_tiled_head0_q；D7: tb_linear_tiled_qkv
 // ============================================================================
-
+//
 module int8_linear_tiled #(
     parameter int INPUT_WIDTH = 8,
     parameter int ACC_WIDTH   = 32,
@@ -17,12 +35,12 @@ module int8_linear_tiled #(
     parameter int FULL_K      = 64,
     parameter int NUM_N_TILES = FULL_N / TILE_N,
     parameter int NUM_K_TILES = FULL_K / TILE_K,
-    parameter int NUM_OPS     = 3,
-    parameter int NUM_HEADS   = 4,
-    parameter int HEAD_WEIGHT_ELEMS = FULL_N * FULL_K,
-    parameter int OP_WEIGHT_ELEMS   = NUM_HEADS * HEAD_WEIGHT_ELEMS,
-    parameter int WEIGHT_DEPTH = NUM_OPS * OP_WEIGHT_ELEMS,
-    parameter int MULT_DEPTH  = NUM_OPS * NUM_HEADS * FULL_N,
+    parameter int NUM_OPS     = 3,                 // D7: Q/K/V
+    parameter int NUM_HEADS   = 4,                 // D7: 4 个注意力头
+    parameter int HEAD_WEIGHT_ELEMS = FULL_N * FULL_K,           // 1024 / head
+    parameter int OP_WEIGHT_ELEMS   = NUM_HEADS * HEAD_WEIGHT_ELEMS, // 4096 / op
+    parameter int WEIGHT_DEPTH = NUM_OPS * OP_WEIGHT_ELEMS,       // 12288
+    parameter int MULT_DEPTH  = NUM_OPS * NUM_HEADS * FULL_N,     // 192
     parameter int M_WIDTH     = $clog2(MAX_M + 1),
     parameter int TILE_N_WIDTH = $clog2(TILE_N + 1),
     parameter int TILE_K_WIDTH = $clog2(TILE_K + 1),
@@ -46,8 +64,8 @@ module int8_linear_tiled #(
     input  logic [M_WIDTH-1:0]            cmd_m,
     input  logic [N_WIDTH-1:0]            cmd_n,
     input  logic [K_WIDTH-1:0]            cmd_k,
-    input  logic [OP_WIDTH-1:0]           cmd_op_type,
-    input  logic [HEAD_WIDTH-1:0]         cmd_head_idx,
+    input  logic [OP_WIDTH-1:0]           cmd_op_type,   // D7: 0=WQ 1=WK 2=WV
+    input  logic [HEAD_WIDTH-1:0]         cmd_head_idx,  // D7: head 0..3
     input  logic                          a_valid,
     output logic                          a_ready,
     input  logic signed [INPUT_WIDTH-1:0] a_data,
@@ -64,6 +82,12 @@ module int8_linear_tiled #(
     output logic [N_WIDTH-1:0]            c_col,
     output logic signed [ACC_WIDTH-1:0]   acc_debug
 );
+    // TILE_IDLE: 预载 w_/mult_，收 cmd
+    // TILE_LOAD_A: 流式收满 M×64 → a_buf（写 RAM 在下方旁路 if）
+    // TILE_START: 清 acc(若 k==0) + replay 一块权重 + 挂起 GEMM cmd
+    // TILE_RUN: 喂 A/B、acc+=partial；k 未完回 START，k 完进 REQ
+    // TILE_REQ_*: HOLD锁存→FEED打valid→WAIT等流水→PRESENT输出（与 D4 同套路）
+    // TILE_DONE: 回 IDLE
     typedef enum logic [3:0] {
         TILE_IDLE,
         TILE_LOAD_A,
@@ -80,10 +104,10 @@ module int8_linear_tiled #(
     logic [M_WIDTH-1:0] m_reg;
     logic [N_WIDTH-1:0] n_reg;
     logic [K_WIDTH-1:0] k_reg;
-    logic [OP_WIDTH-1:0] op_reg;
-    logic [HEAD_WIDTH-1:0] head_reg;
-    logic [$clog2(NUM_N_TILES+1)-1:0] n_tile;
-    logic [$clog2(NUM_K_TILES+1)-1:0] k_tile;
+    logic [OP_WIDTH-1:0] op_reg;       // 锁存的 op（整次 cmd 不变）
+    logic [HEAD_WIDTH-1:0] head_reg;   // 锁存的 head
+    logic [$clog2(NUM_N_TILES+1)-1:0] n_tile;  // 外循环：输出列组
+    logic [$clog2(NUM_K_TILES+1)-1:0] k_tile;  // 内循环：K 段
     logic [$clog2(NUM_N_TILES*NUM_K_TILES+1)-1:0] tile_idx;
     logic [K_WIDTH-1:0] k_base;
     logic [N_WIDTH-1:0] n_base;
@@ -139,6 +163,7 @@ module int8_linear_tiled #(
     logic cmd_accept;
     logic tile_complete;
 
+    // --- 握手与 GEMM/loader 连线 ---
     assign cmd_accept     = cmd_valid && cmd_ready;
     assign cmd_ready      = (tile_state == TILE_IDLE);
     assign w_ready        = (tile_state == TILE_IDLE) && loader_w_ready;
@@ -160,9 +185,11 @@ module int8_linear_tiled #(
     assign tile_complete  = gemm_c_valid && gemm_c_ready &&
                             (tile_c_count == (tile_c_total - TILE_C_COUNT_WIDTH'(1)));
     localparam int TILE_IDX_W = (NUM_N_TILES * NUM_K_TILES <= 1) ? 1 : $clog2(NUM_N_TILES * NUM_K_TILES + 1);
-    assign k_base         = K_WIDTH'(k_tile) * K_WIDTH'(TILE_K);
-    assign n_base         = N_WIDTH'(n_tile) * N_WIDTH'(TILE_N);
+    // --- D6 切块地址 + D7 货架基址（组合逻辑，跟寄存器走）---
+    assign k_base         = K_WIDTH'(k_tile) * K_WIDTH'(TILE_K);   // 0,16,32,48
+    assign n_base         = N_WIDTH'(n_tile) * N_WIDTH'(TILE_N);   // 0,4,8,12
     assign tile_idx       = TILE_IDX_W'(n_tile) * TILE_IDX_W'(NUM_K_TILES) + TILE_IDX_W'(k_tile);
+    // D7: 大银行里「当前 op×head」起点；D6 时恒为 0
     assign region_base    = WEIGHT_ADDR_WIDTH'(op_reg) * WEIGHT_ADDR_WIDTH'(OP_WEIGHT_ELEMS)
                           + WEIGHT_ADDR_WIDTH'(head_reg) * WEIGHT_ADDR_WIDTH'(HEAD_WEIGHT_ELEMS);
     assign mult_region_base = MULT_ADDR_WIDTH'(op_reg) * MULT_ADDR_WIDTH'(NUM_HEADS * FULL_N)
@@ -174,6 +201,7 @@ module int8_linear_tiled #(
         local_col     = N_WIDTH'(out_idx % OUT_COUNT_WIDTH'(TILE_N));
     end
 
+    // --- 子模块：GEMM / requantize / weight_loader ---
     int8_gemm_parallel #(
         .INPUT_WIDTH(INPUT_WIDTH),
         .ACC_WIDTH(ACC_WIDTH),
@@ -237,6 +265,7 @@ module int8_linear_tiled #(
         .r_data(loader_r_data)
     );
 
+    // --- 主 FSM：LOAD_A / 跑 tile / K 累加 / requantize 输出 ---
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             tile_state        <= TILE_IDLE;
@@ -272,11 +301,13 @@ module int8_linear_tiled #(
             replay_start     <= 1'b0;
             requant_in_valid <= 1'b0;
 
+            // IDLE 预载每列 scale（握手一次写一个）
             if (mult_valid && mult_ready) begin
                 mult_mem[mult_wr_ptr] <= mult_data;
                 mult_wr_ptr           <= mult_wr_ptr + 1'b1;
             end
 
+            // LOAD_A 旁路：真正写入 a_buf；满了才切 START（case 里 TILE_LOAD_A 几乎为空）
             if (tile_state == TILE_LOAD_A && a_valid && a_ready) begin
                 a_buf[a_load_count / A_COUNT_WIDTH'(FULL_K)]
                      [a_load_count % A_COUNT_WIDTH'(FULL_K)] <= a_data;
@@ -294,6 +325,7 @@ module int8_linear_tiled #(
                 a_feed_idx <= a_feed_idx + 1'b1;
             end
 
+            // RUN 旁路：与 tile_c_count++ 同一握手 —— GEMM 汇总加法在这里
             if (gemm_c_valid && gemm_c_ready) begin
                 acc_mem[gemm_c_row][gemm_c_col] <=
                     acc_mem[gemm_c_row][gemm_c_col] + gemm_c_data;
@@ -308,7 +340,7 @@ module int8_linear_tiled #(
                         m_reg        <= cmd_m;
                         n_reg        <= cmd_n;
                         k_reg        <= cmd_k;
-                        op_reg       <= cmd_op_type;
+                        op_reg       <= cmd_op_type;   // D7 锁存货架选择
                         head_reg     <= cmd_head_idx;
                         a_total      <= A_COUNT_WIDTH'(cmd_m) * A_COUNT_WIDTH'(FULL_K);
                         a_load_count <= '0;
@@ -317,10 +349,12 @@ module int8_linear_tiled #(
                     end
                 end
 
+                // 收数逻辑在上方旁路 if；此处仅保持 pending 清零
                 TILE_LOAD_A: begin
                     gemm_cmd_pending <= 1'b0;
                 end
 
+                // 开一小盘 M×4×16：replay = region + tile_idx*64
                 TILE_START: begin
                     replay_start     <= 1'b1;
                     replay_base_addr <= region_base
@@ -330,6 +364,7 @@ module int8_linear_tiled #(
                     a_feed_idx       <= '0;
                     a_feed_total     <= A_COUNT_WIDTH'(m_reg) * A_COUNT_WIDTH'(TILE_K);
                     tile_c_count     <= '0;
+                    // 新一组输出列才清草稿纸；同一组换 k 时继续累加
                     if (k_tile == '0) begin
                         for (int row = 0; row < MAX_M; row++) begin
                             for (int col = 0; col < TILE_N; col++) begin
@@ -344,29 +379,30 @@ module int8_linear_tiled #(
                     if (gemm_cmd_pending && gemm_cmd_ready) begin
                         gemm_cmd_pending <= 1'b0;
                     end
+                    // tile_complete: 本铲 C 收齐（count 从 0 计，末拍看 total-1）
                     if (tile_complete) begin
                         a_feed_idx <= '0;
                         if (k_tile != NUM_K_TILES - 1) begin
-                            k_tile     <= k_tile + 1'b1;
+                            k_tile     <= k_tile + 1'b1;   // 内循环：下一段 K
                             tile_state <= TILE_START;
                         end else begin
                             out_idx    <= '0;
-                            tile_state <= TILE_REQ_HOLD;
+                            tile_state <= TILE_REQ_HOLD;   // K 满 → 统一量化
                         end
                     end
                 end
 
-                // 先锁存 acc/row/col/mult，下一拍再打 in_valid（与 D4 linear_layer 一致）
+                // 量化输入锁存（RQ≠GEMM：这是压缩器，不是乘加）
                 TILE_REQ_HOLD: begin
                     held_row  <= out_idx / OUT_COUNT_WIDTH'(TILE_N);
-                    held_col  <= n_base + local_col;
+                    held_col  <= n_base + local_col;  // 全局列
                     held_acc  <= acc_mem[out_idx / OUT_COUNT_WIDTH'(TILE_N)][local_col];
                     held_mult <= mult_mem[mult_region_base + MULT_ADDR_WIDTH'(n_base + local_col)];
                     tile_state <= TILE_REQ_FEED;
                 end
 
                 TILE_REQ_FEED: begin
-                    requant_in_valid <= 1'b1;
+                    requant_in_valid <= 1'b1;  // 脉冲；流水约 2 拍后 out_valid
                     tile_state       <= TILE_REQ_WAIT;
                 end
 
@@ -386,7 +422,7 @@ module int8_linear_tiled #(
                         c_valid <= 1'b0;
                         if (out_idx == tile_c_total - 1'b1) begin
                             if (n_tile != NUM_N_TILES - 1) begin
-                                n_tile     <= n_tile + 1'b1;
+                                n_tile     <= n_tile + 1'b1;  // 外循环：下一组列
                                 k_tile     <= '0;
                                 tile_state <= TILE_START;
                             end else begin

@@ -1,6 +1,17 @@
 // ============================================================================
-// int8_elem_mul.sv — D11 element-wise INT8 multiply with >>7 rounding/sat
+// 文件: int8_elem_mul.sv
+// 学习阶段: D11 逐元素乘（SwiGLU: silu(gate) × up）
+// ----------------------------------------------------------------------------
+// 【在整条链的位置】
+//   SiLU(gate) 与 up_proj 输出逐元素相乘，得到 hidden，再进 down_proj
+//
+// 【算式】z = saturate( round_half_away(a*b) >>> SHIFT_BITS )，默认 SHIFT_BITS=7
+//   舍入与 RTL 对齐：正数 +HALF，负数 +(HALF-1)（同仓库其它定点乘）
+//
+// 【FSM】IDLE→(WAIT_A→WAIT_B→EMIT)×cmd_len
+// 【验证】分层 TB / Block E2E（tb_int8_transformer_block）
 // ============================================================================
+//
 module int8_elem_mul #(
     parameter int DATA_WIDTH = 8,
     parameter int IDX_WIDTH  = 10,
@@ -29,12 +40,14 @@ module int8_elem_mul #(
     logic signed [2*DATA_WIDTH-1:0] prod_w, rounded;
     localparam logic signed [2*DATA_WIDTH-1:0] HALF = (1 << (SHIFT_BITS - 1));
 
+    // --- 握手 ---
     assign cmd_ready = (state == IDLE);
     assign a_ready   = (state == WAIT_A);
     assign b_ready   = (state == WAIT_B);
     assign z_data    = z_hold;
     assign z_idx     = idx;
 
+    // --- 主 FSM：收 a/b → 乘加 round/sat → 发射 ---
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state   <= IDLE;

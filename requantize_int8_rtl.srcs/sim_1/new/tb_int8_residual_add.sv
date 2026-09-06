@@ -1,3 +1,14 @@
+// ============================================================================
+// 文件: tb_int8_residual_add.sv
+// 阶段: D11
+// 作用: 对拍饱和 INT8 残差加法（流式 x+y→z）
+// DUT: int8_residual_add
+// 向量: residual_add_vectors.txt（seed=20260905，5 case）
+// CLI: scripts/run_residual_add_xsim.bat
+// ============================================================================
+//
+// 流程: send_cmd(len) → stream X/Y → recv_z 对拍 z_idx/z_data
+//
 `timescale 1ns/1ps
 module tb_int8_residual_add;
     localparam int DATA_WIDTH=8, IDX_WIDTH=10, EXPECTED_CASES=5, EXPECTED_SEED=20260905;

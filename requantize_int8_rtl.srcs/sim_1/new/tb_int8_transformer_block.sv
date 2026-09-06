@@ -1,6 +1,14 @@
 // ============================================================================
-// TB: tb_int8_transformer_block.sv — D12 E2E block (seq=1)
+// 文件: tb_int8_transformer_block.sv
+// 阶段: D12
+// 作用: 对拍 E2E transformer block（seq=1 路径）
+// DUT: int8_transformer_block
+// 向量: transformer_block_vectors.txt（seed=20260908，1 case）
+// CLI: scripts/run_transformer_block_xsim.bat（debug: scripts/run_transformer_block_debug.bat）
 // ============================================================================
+//
+// 流程: preload QKV/Wo/FFN 权重与 mult → cmd(seq) → stream x → receive out_data/out_idx 对拍
+//
 `timescale 1ns/1ps
 
 module tb_int8_transformer_block;

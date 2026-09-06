@@ -1,14 +1,14 @@
 // ============================================================================
 // 文件: requantize_int8_pipeline.sv
-// 阶段: 量化
-// 作用: 2 拍流水线版 requantize，in_valid 到 out_valid 固定延迟
-// 验证: tb_requantize_int8_pipeline.sv
+// 学习阶段: D4 量化 — 2 拍流水（Linear / tiled / RQ 状态机对接的版本）
+// ----------------------------------------------------------------------------
+// 【为何流水】给上层 FSM 稳定的 in_valid→out_valid 延迟（固定 2 拍）
+//   S1: product = acc * scale
+//   S2: round half-away-from-zero + >>> SHIFT_BITS + 饱和 [-127,127]
+// 【谁用】int8_linear_layer、int8_linear_tiled 的 TILE_REQ_* / OUT_* 
+// 【验证】tb_requantize_int8_pipeline.sv
 // ============================================================================
-
-// 2 级流水，与组合版 requantize_int8 数学一致:
-//   S1: product = acc_i * multiplier_i（mult 为 18-bit 无符号）
-//   S2: round half away from zero + 算术右移 SHIFT_BITS + 对称饱和 [-127,127]
-// out_valid 比 in_valid 延迟 2 拍（TB 用 valid_history 检查）
+//
 module requantize_int8_pipeline #(
     parameter int SHIFT_BITS = 24
 ) (
@@ -30,6 +30,7 @@ logic signed [49:0] rounded_s2;
 logic signed [49:0] shifted_s2;
 logic               valid_s2;
 assign multiplier_signed_in = $signed({1'b0, multiplier_i});
+// --- S2 组合：round + 算术右移（基于 S1 product）---
 always_comb begin
     if (product_s1 >= 0)
         rounded_comb = product_s1 + HALF_LSB;
@@ -37,6 +38,7 @@ always_comb begin
         rounded_comb = product_s1 + (HALF_LSB - 50'sd1);
     shifted_comb = rounded_comb >>> SHIFT_BITS;
 end
+// --- 2 拍流水：S1 乘积 → S2 round/shift → 饱和输出 ---
 always_ff @(posedge clk) begin
     if (!rst_n) begin
         product_s1 <= 50'sd0;

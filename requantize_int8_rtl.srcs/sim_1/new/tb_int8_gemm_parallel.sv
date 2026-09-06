@@ -1,10 +1,14 @@
 // ============================================================================
-// TB: tb_int8_gemm_parallel.sv
-// 测:  int8_gemm_parallel
-// 作用: D3 并行 GEMM 24 case 内联回归，INT32 期望
+// 文件: tb_int8_gemm_parallel.sv
+// 阶段: D3
+// 作用: 定向回归并行 GEMM（与串行 TB 同口径）
+// DUT: int8_gemm_parallel
+// 向量: 内联 24 case（INT32 期望）
+// CLI: scripts/run_gemm_parallel_gui_vcd.bat（inline 模式）
 // ============================================================================
-
-// D3 内联 24 case，与 tb_int8_gemm_serial 同口径，DUT 为 int8_gemm_parallel
+//
+// 流程: send_command → stream A/B → receive_c 对拍；检查背压；与 tb_int8_gemm_serial 同期望
+//
 `timescale 1ns/1ps
 module tb_int8_gemm_parallel;
 localparam int INPUT_WIDTH = 8;

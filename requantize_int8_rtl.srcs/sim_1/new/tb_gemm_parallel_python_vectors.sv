@@ -1,11 +1,14 @@
 // ============================================================================
-// TB: tb_gemm_parallel_python_vectors.sv
-// 测:  int8_gemm_parallel
-// 作用: D3 — 读 gemm_parallel_vectors.txt，24/24 INT32 对拍
+// 文件: tb_gemm_parallel_python_vectors.sv
+// 阶段: D3
+// 作用: 对拍并行 GEMM Python golden（24/24 INT32）
+// DUT: int8_gemm_parallel
+// 向量: gemm_parallel_vectors.txt
+// CLI: scripts/run_gemm_parallel_xsim.bat（VCD: scripts/run_gemm_parallel_export_vcd.bat）
 // ============================================================================
-
-// D3 Python 向量: gemm_parallel_vectors.txt
-// task: send_command, send_a, send_b, receive_c（INT32 期望）
+//
+// 流程: 读 CASE → A/B/EXPECT → send_command/send_a/send_b → receive_c 对拍
+//
 `timescale 1ns/1ps
 
 module tb_gemm_parallel_python_vectors;

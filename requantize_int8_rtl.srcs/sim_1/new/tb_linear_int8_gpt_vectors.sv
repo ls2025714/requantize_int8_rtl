@@ -1,12 +1,15 @@
 // ============================================================================
-// TB: tb_linear_int8_gpt_vectors.sv
-// 测:  int8_linear_layer
-// 作用: D5 — 读 gpt_linear_vectors.txt，MiniGPT Wq 真实权重 slice，INT8 对拍
+// 文件: tb_linear_int8_gpt_vectors.sv
+// 阶段: D5
+// 作用: 对拍 int8_linear_layer（MiniGPT Wq 真实权重 slice）
+// DUT: int8_linear_layer
+// 向量: gpt_linear_vectors.txt
+// CLI: scripts/run_linear_int8_gpt_xsim.bat
 // ============================================================================
-
-// D5: gpt_linear_vectors.txt
-// 每 case: preload WEIGHT → preload MULT → cmd → stream A → receive INT8 C
-// task: preload_weights, preload_mults, send_command, send_a, receive_c
+//
+// 流程: preload WEIGHT → preload MULT → cmd → stream A → receive INT8 C 对拍
+// task: preload_weights / preload_mults / send_command / send_a / receive_c
+//
 `timescale 1ns/1ps
 
 module tb_linear_int8_gpt_vectors;

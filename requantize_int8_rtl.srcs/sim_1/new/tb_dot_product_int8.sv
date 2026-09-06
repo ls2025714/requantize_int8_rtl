@@ -1,10 +1,13 @@
 // ============================================================================
-// TB: tb_dot_product_int8.sv
-// 测:  dot_product_int8
-// 作用: 串行点积定向与随机 case
+// 文件: tb_dot_product_int8.sv
+// 阶段: 串行点积
+// 作用: 定向+随机测试串行点积 m_result
+// DUT: dot_product_int8
+// 向量: 内联定向/随机 case
 // ============================================================================
-
-// 串行点积：cmd + 流式 a/b，检查 m_result
+//
+// 流程: send cmd_length → 流式 s_a/s_b → 接收 m_result 对拍；统计 mismatch
+//
 `timescale 1ns/1ps
 module tb_dot_product_int8;
 localparam int INPUT_WIDTH = 8;

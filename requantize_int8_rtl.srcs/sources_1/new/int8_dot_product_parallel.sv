@@ -1,25 +1,18 @@
 // ============================================================================
 // 文件: int8_dot_product_parallel.sv
-// 阶段: D1/D2（Task B/C/D 点积核心）
-// 作用: 4-lane 并行点积，s_keep 掩尾 beat，FSM: IDLE→RUN→DRAIN→OUTPUT
-// 验证: tb_int8_dot_product_parallel.sv / tb_dot_product_parallel_python_vectors.sv
+// 学习阶段: D2 四路并行点积（Task B/C/D 核心）
+// ----------------------------------------------------------------------------
+// 【相对串行】每拍最多 4 对 INT8；beat_total=ceil(K/4)；尾拍用 s_keep 掩无效 lane
+// 【位宽树】必须会推导:
+//   4×16-bit Product → 2×17-bit Pair Sum（先符号扩展）→ 18-bit Partial → INT32 Acc
+// 【流水】S1乘 → S2 pair → S3 partial → S4 acc；DRAIN 等 pipeline 清空后再 OUTPUT
+// 【FSM】IDLE → RUN → DRAIN → OUTPUT（输出阻塞时 m_valid/m_result 保持）
+// 【谁用】int8_gemm_parallel、int8_score_gemm 等
+// 【验证】tb_int8_dot_product_parallel / tb_dot_product_parallel_python_vectors（120/120）
 // ============================================================================
-
-// 4-lane 数据通路（每 beat 最多 4 个 MAC）:
-//   S1: 4×INT8 乘法 → 16-bit product（s_keep=0 的 lane 乘积强制为 0）
-//   S2: 两两相加 → 17-bit pair sum（相加前符号扩展到 17-bit）
-//   S3: 两个 pair 相加 → 18-bit partial sum
-//   S4: partial 累加到 32-bit acc_reg
-// beat_total = ceil(K/4)；尾 beat 由 s_keep 掩无效 lane
-// DRAIN: 最后一 beat 已收，不再 s_ready，等 pipeline 内剩余 partial 进 acc
-// debug_mode: IDLE 且无 cmd 时，acc_enable 可单步灌 partial（Task B 用）
 //
-// 端口:
-//   cmd_*     — 点积长度 K；cmd_accept 后进入 RUN
-//   s_*       — 流式输入 beat；s_a0..3 / s_b0..3 为 4 lane；s_keep 掩无效 lane
-//   m_*       — 输出 INT32 点积结果
-//   partial_* — debug：S3 输出的 18-bit partial sum
-//   acc_*     — debug：S4 累加器当前值
+// debug_mode: IDLE 且无 cmd 时可用 acc_enable 单步灌 partial（Task B）
+// partial_*/acc_* 为 debug 口，功能口只需 m_*
 //
 module int8_dot_product_parallel #(
     parameter int INPUT_WIDTH     = 8,

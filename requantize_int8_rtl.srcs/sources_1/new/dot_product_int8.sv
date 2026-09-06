@@ -1,16 +1,14 @@
 // ============================================================================
 // 文件: dot_product_int8.sv
-// 阶段: 串行点积
-// 作用: 向量点积（每拍 1 对 INT8），输出 INT32 累加和
-// 验证: tb_dot_product_int8.sv
+// 学习阶段: D1 串行点积（并行版之前的 baseline）
+// ----------------------------------------------------------------------------
+// 【数学】result = Σ_{k=0..K-1} a[k]*b[k] → INT32
+// 【协议】cmd(K) → RUN 每拍一对 (a,b) → DRAIN 等 MAC 流水尾部 → OUTPUT
+//   关键学习点: 「最后一个输入被接收」≠「最后一个结果已累加完」→ 必须 DRAIN
+// 【依赖】int8_mac_pipeline；【对比】int8_dot_product_parallel（D2，4 lane）
+// 【验证】tb_dot_product_int8.sv
 // ============================================================================
-
-// 协议:
-//   1) cmd_valid/cmd_length — 告诉点积长度 K
-//   2) RUN 态流式 s_valid + s_a/s_b，每拍一对
-//   3) DRAIN 等 MAC 流水线尾部结果进入 acc
-//   4) OUTPUT 态 m_valid=1 输出 m_result，等 m_ready 回 IDLE
-// 内部实例化 int8_mac_pipeline；cmd_accept 时 pulse clear
+//
 module dot_product_int8 #(
     parameter int INPUT_WIDTH  = 8,
     parameter int ACC_WIDTH    = 32,

@@ -1,6 +1,19 @@
 // ============================================================================
-// int8_residual_add.sv — D11 saturated INT8 residual add (stream)
+// 文件: int8_residual_add.sv
+// 学习阶段: D11 残差连接（Res1 / Res2）
+// ----------------------------------------------------------------------------
+// 【在整条链的位置】
+//   D12 里两处：Wo 输出 + 输入 X → Res1；FFN down 输出 + Res1 → Res2
+//   本模块假设两路 INT8 已对齐同一量化域（由上层保证）
+//
+// 【算式】z = saturate_sym(x + y) ∈ [-127, 127]
+//   中间用 9-bit 有符号和，再饱和回 INT8
+//
+// 【FSM】IDLE→(WAIT_X→WAIT_Y→EMIT)×cmd_len → IDLE
+//   学习注意（D12 踩坑）：COLLECT 时 z_ready 应保持可接收，勿用 !z_valid 门控饿死
+// 【验证】tb_int8_residual_add.sv
 // ============================================================================
+//
 module int8_residual_add #(
     parameter int DATA_WIDTH = 8,
     parameter int IDX_WIDTH  = 10
@@ -27,12 +40,14 @@ module int8_residual_add #(
     logic signed [DATA_WIDTH-1:0] x_hold, y_hold, z_hold;
     logic signed [DATA_WIDTH:0]   sum_w;
 
+    // --- 握手 ---
     assign cmd_ready = (state == IDLE);
     assign x_ready   = (state == WAIT_X);
     assign y_ready   = (state == WAIT_Y);
     assign z_data    = z_hold;
     assign z_idx     = idx;
 
+    // --- 主 FSM：收 x/y → 饱和加法 → 发射 ---
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state  <= IDLE;

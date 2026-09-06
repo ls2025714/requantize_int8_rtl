@@ -1,19 +1,14 @@
 // ============================================================================
 // 文件: int8_gemm_parallel.sv
-// 阶段: D3 并行 GEMM
-// 作用: M×N×K 矩阵乘，DOT_FEED 每拍 4 lane + s_keep，INT32 输出
-// 依赖: int8_dot_product_parallel
-// 验证: tb_int8_gemm_parallel.sv / tb_gemm_parallel_python_vectors.sv
+// 学习阶段: D3 并行 GEMM 控制器
+// ----------------------------------------------------------------------------
+// 【定位】只做调度：装 A/B → 按 (row,col) 调 4-lane 点积 → 吐 INT32 C
+//   不算 Linear/requant；那些是 D4
+// 【相对串行】DOT_FEED 每拍 4 对；s_keep 掩 K 非 4 倍数的尾拍；beat_total=ceil(K/4)
+// 【地址】A: a[i*K+k+l]；B: b[(k+l)*N+j]；仅在点积输入握手后推进 k_base
+// 【FSM】与串行同骨架：IDLE→LOAD_A/B→DOT_CMD→DOT_FEED→DOT_WAIT→OUTPUT_C
+// 【验证】tb_int8_gemm_parallel / tb_gemm_parallel_python_vectors（seed=20260827，24/24）
 // ============================================================================
-
-// 与串行 GEMM 相同 FSM，区别在 DOT_FEED:
-//   每 beat 读 4 对 (a,b)：A 行内 +4，B 列方向 +4*N
-//   dot_s_keep[lane] = (beat_index*4 + lane) < K
-//   beat_total = ceil(K/4)
-// B 存 K×N 行优先；读列 j 时 b_read_addr 从 col_index 起步，每 lane +k*N
-//
-// 矩阵布局: a_mem[i*K+k]=A[i][k], b_mem[k*N+j]=B[k][j], C[i][j] INT32 输出
-// 端口: cmd_m/n/k 维度；a_* LOAD_A；b_* LOAD_B；c_* 带 row/col 的输出
 //
 module int8_gemm_parallel #(
     parameter int INPUT_WIDTH = 8,

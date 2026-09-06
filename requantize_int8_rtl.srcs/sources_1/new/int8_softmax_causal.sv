@@ -1,9 +1,28 @@
 // ============================================================================
 // 文件: int8_softmax_causal.sv
-// 阶段: D9 Scale + Causal Mask + 定点 Softmax
-// 规格与 LUT: scripts/softmax_fixed_ref.py（bit-exact）
+// 学习阶段: D9 Scale + Causal Mask + 定点 Softmax
+// ----------------------------------------------------------------------------
+// 【在整条链的位置】
+//   D8 score_gemm 吐出 Score[seq,seq] INT32
+//   D9 本模块：按行做 scale → causal mask → 减 max → exp LUT → 归一化
+//   输出 UQ1.15 概率，供 D10 Attn@V 使用
+//
+// 【务必对齐的参考】
+//   Python/RTL 同一套定点：scripts/softmax_fixed_ref.py（bit-exact）
+//   不要另开“通用 Softmax 近似”来学；以本仓库冻结算法为准
+//
+// 【每行算法人话】
+//   1) SCALE:  s' = (score * SOFT_SCALE_MULT) >>> SOFT_SCALE_SHIFT
+//   2) MASK:   若 col > row（未来 token）→ 置成极负 SOFT_MASK_VAL
+//   3) MAX:    只在有效列上找行最大值（数值稳定，不改变 Softmax 相对关系）
+//   4) EXP:    clamp(s'-max) 查 SOFT_EXP_LUT，累加 sum_e；上三角 exp=0
+//   5) RECIP:  inv_q ≈ 2^31 / sum_e
+//   6) EMIT:   P = (exp * inv_q) >> 16；上三角强制 0
+//
+// 【FSM】IDLE→LOAD→每行(ROW_INIT→SCALE→MAX→EXP→RECIP→EMIT)→下一行或 IDLE
+// 【验证】tb_int8_softmax_causal.sv；seed=20260902，6/6 PASS
 // ============================================================================
-
+//
 module int8_softmax_causal #(
     parameter int ACC_WIDTH = 32,
     parameter int MAX_SEQ   = 4,
@@ -38,6 +57,9 @@ module int8_softmax_causal #(
         15'd1631, 15'd4435, 15'd12054, 15'd32767
     };
 
+    // IDLE: 等 cmd_seq
+    // LOAD: 按 in_row/in_col 写入整张 Score
+    // ROW_*: 对 work_row 做完一行 Softmax 后 work_row++，直到最后一行
     typedef enum logic [3:0] {
         IDLE, LOAD, ROW_INIT, ROW_SCALE, ROW_MAX, ROW_EXP, ROW_RECIP, ROW_EMIT
     } state_t;
@@ -65,6 +87,7 @@ module int8_softmax_causal #(
     assign out_col   = col_i;
     assign out_data  = out_data_comb;
 
+    // --- EMIT 组合：因果上三角置 0，否则 (exp*inv)>>16 ---
     always_comb begin
         if (state != ROW_EMIT)
             out_data_comb = '0;
@@ -74,6 +97,7 @@ module int8_softmax_causal #(
             out_data_comb = P_WIDTH'((32'(exp_mem[col_i]) * inv_q) >> 16);
     end
 
+    // --- 主 FSM：LOAD + 按行 Softmax ---
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             state     <= IDLE;
@@ -86,6 +110,7 @@ module int8_softmax_causal #(
             max_valid <= 1'b0;
         end else begin
             unique case (state)
+                // 锁存序列长度，开始灌 Score
                 IDLE: begin
                     if (cmd_valid && cmd_ready) begin
                         seq_reg <= cmd_seq;
@@ -93,6 +118,7 @@ module int8_softmax_causal #(
                     end
                 end
 
+                // 收满 Score[seq-1][seq-1] 后从第 0 行 Softmax
                 LOAD: begin
                     if (in_valid && in_ready) begin
                         score_mem[in_row][in_col] <= in_data;
@@ -103,6 +129,7 @@ module int8_softmax_causal #(
                     end
                 end
 
+                // 清本行工作变量，进入 SCALE
                 ROW_INIT: begin
                     col_i     <= '0;
                     sum_e     <= '0;
@@ -111,6 +138,7 @@ module int8_softmax_causal #(
                     state     <= ROW_SCALE;
                 end
 
+                // 逐列：未来位置写 MASK；否则乘 scale 右移。扫完 → ROW_MAX
                 ROW_SCALE: begin
                     if (col_i > work_row) begin
                         scaled_mem[col_i] <= SOFT_MASK_VAL;
@@ -127,6 +155,7 @@ module int8_softmax_causal #(
                     end
                 end
 
+                // 只在因果可见列 (col<=row) 上找最大值
                 ROW_MAX: begin
                     if (col_i <= work_row) begin
                         if (!max_valid || (scaled_mem[col_i] > row_max)) begin
@@ -143,6 +172,7 @@ module int8_softmax_causal #(
                     end
                 end
 
+                // 查 LUT 得 exp，累加 sum_e；未来列 exp=0
                 ROW_EXP: begin
                     if (col_i > work_row) begin
                         exp_mem[col_i] <= '0;
@@ -163,6 +193,7 @@ module int8_softmax_causal #(
                     end
                 end
 
+                // 一行一个倒数；再逐列发射概率
                 ROW_RECIP: begin
                     if (sum_e == 32'd0)
                         inv_q <= 32'd0;
@@ -172,6 +203,7 @@ module int8_softmax_causal #(
                     state <= ROW_EMIT;
                 end
 
+                // 下游握手吐出本行各列 P；行完 → 下一行 ROW_INIT；全完 → IDLE
                 ROW_EMIT: begin
                     if (out_valid && out_ready) begin
                         if (col_i == seq_reg - 1'b1) begin

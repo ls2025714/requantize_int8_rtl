@@ -1,26 +1,15 @@
 // ============================================================================
 // 文件: int8_linear_layer.sv
-// 阶段: D4 Linear 顶层
-// 作用: GEMM(INT32) + weight_loader + requantize → INT8 输出
-// 依赖: int8_gemm_parallel, int8_weight_loader, requantize_int8_pipeline
-// 验证: tb_linear_int8_python_vectors.sv
+// 学习阶段: D4 Linear = GEMM + weight_loader + requantize
+// ----------------------------------------------------------------------------
+// 【相对 D3】GEMM 仍出 INT32；本顶层加上：权重预载、每列 scale、INT32→INT8
+// 【相对 D6】这里每个子 GEMM 立刻 requant；不能跨 K-tile 累加 → 大层用 tiled
+// 【数据流】
+//   IDLE 预载 w_* → loader，mult_* → mult_mem[列]
+//   cmd + a_* → u_gemm；LOAD_B 时 B 来自 loader 回放
+//   每个 C → OUT_FEED/REQUANT/PRESENT → INT8（shift=24）
+// 【验证】tb_linear_int8_python_vectors（24/24）；D5 同 RTL 换 GPT 权重
 // ============================================================================
-
-// D4 顶层数据流:
-//   TB → w_* 预存 WEIGHT → weight_loader
-//   TB → mult_* 写入 mult_mem[0..N-1]（每输出列一个 18-bit scale）
-//   TB → cmd + a_* → u_gemm；LOAD_B 时 loader 回放代替 TB 送 b
-//   GEMM 每出一个 INT32 C 元素 → requantize → 对外 INT8 c_valid/c_data
-// out_state: OUT_IDLE → OUT_FEED → OUT_REQUANT → OUT_PRESENT
-//   OUT_IDLE 期间才接受新 cmd；gemm_c_ready 仅在 OUT_PRESENT 且下游握手
-// acc_debug: 波形/debug 看 raw accumulator
-//
-// 端口:
-//   w_*    — 预加载权重（B 矩阵，K×N 个 INT8）
-//   mult_* — 预加载每列 requantize scale（N 个 18-bit，在 cmd 前送完）
-//   a_*    — LOAD_A 态流式送激活
-//   cmd_*  — 矩阵维度 M/N/K（仅 OUT_IDLE 可接受）
-//   c_*    — 输出 INT8 结果 + row/col；acc_debug 为对应 INT32 累加值
 //
 module int8_linear_layer #(
     parameter int INPUT_WIDTH = 8,

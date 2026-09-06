@@ -1,12 +1,15 @@
 // ============================================================================
-// TB: tb_linear_int8_python_vectors.sv
-// 测:  int8_linear_layer
-// 作用: D4 — 读 linear_int8_vectors.txt，预加载 WEIGHT/MULT，INT8 对拍
+// 文件: tb_linear_int8_python_vectors.sv
+// 阶段: D4
+// 作用: 对拍 int8_linear_layer（预加载 WEIGHT/MULT → INT8 C）
+// DUT: int8_linear_layer
+// 向量: linear_int8_vectors.txt（seed=20260828，24 case）
+// CLI: scripts/run_linear_int8_xsim.bat
 // ============================================================================
-
-// D4: linear_int8_vectors.txt
-// 每 case: preload WEIGHT → preload MULT → cmd → stream A → receive INT8 C
-// task: preload_weights, preload_mults, send_command, send_a, receive_c
+//
+// 流程: preload WEIGHT → preload MULT → cmd(m,n,k) → stream A → receive INT8 C 对拍
+// task: preload_weights / preload_mults / send_command / send_a / receive_c
+//
 `timescale 1ns/1ps
 
 module tb_linear_int8_python_vectors;

@@ -1,3 +1,14 @@
+// ============================================================================
+// 文件: tb_int8_attn_v.sv
+// 阶段: D10
+// 作用: 对拍 Attention Probability @ V（Y = P @ V）
+// DUT: int8_attn_v
+// 向量: attn_v_vectors.txt（seed=20260903，5 case）
+// CLI: scripts/run_attn_v_xsim.bat
+// ============================================================================
+//
+// 流程: send_cmd(seq) → stream P/V → receive Y[row][col] INT8 对拍
+//
 `timescale 1ns/1ps
 module tb_int8_attn_v;
     localparam int INPUT_WIDTH=8, P_WIDTH=16, MAX_SEQ=4, HEAD_DIM=16;

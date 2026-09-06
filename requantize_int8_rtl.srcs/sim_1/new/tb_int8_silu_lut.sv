@@ -1,3 +1,14 @@
+// ============================================================================
+// 文件: tb_int8_silu_lut.sv
+// 阶段: D11
+// 作用: 对拍 SiLU LUT（INT8 in/out，冻结 256 项）
+// DUT: int8_silu_lut
+// 向量: silu_lut_vectors.txt（seed=20260906，3 case）
+// CLI: scripts/run_silu_lut_xsim.bat
+// ============================================================================
+//
+// 流程: stream IN(idx,data) → recv_out 对拍 out_idx/out_data
+//
 `timescale 1ns/1ps
 module tb_int8_silu_lut;
     localparam int DATA_WIDTH=8, IDX_WIDTH=10, EXPECTED_CASES=3, EXPECTED_SEED=20260906;

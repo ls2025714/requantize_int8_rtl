@@ -1,14 +1,14 @@
 // ============================================================================
-// TB: tb_int8_dot_product_parallel.sv
-// 测:  int8_dot_product_parallel
-// 作用: Task B/C — partial/acc 时序 + FSM 定向 + 随机，内联 case
+// 文件: tb_int8_dot_product_parallel.sv
+// 阶段: D1/D2（Task B/C）
+// 作用: 定向测试并行点积 partial/acc 时序、FSM 与随机结果
+// DUT: int8_dot_product_parallel
+// 向量: 内联（Task B 时序 + Task C 定向 + 随机）
 // ============================================================================
-
-// Task B/C 大 TB:
-//   - partial/acc 单拍时序（Task B）
-//   - FSM 定向 case（Task C）
-//   - 随机 case + mismatch_count 统计
-// 复用 task: send_command, send_beat, receive_result, pulse_clear
+//
+// 流程: Task B 查 partial/acc 延迟 → Task C FSM 定向 → 随机 case 对拍 m_result
+// task: send_command / send_beat / receive_result / pulse_clear
+//
 `timescale 1ns/1ps
 
 module tb_int8_dot_product_parallel;

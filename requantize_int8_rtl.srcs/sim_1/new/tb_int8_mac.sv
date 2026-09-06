@@ -1,10 +1,13 @@
 // ============================================================================
-// TB: tb_int8_mac.sv
-// 测:  int8_mac
-// 作用: 基础 MAC clear/enable/累加定向测试
+// 文件: tb_int8_mac.sv
+// 阶段: 基础
+// 作用: 定向测试 int8_mac（clear / enable / 正负乘积 / 累加）
+// DUT: int8_mac
+// 向量: 内联定向 case
 // ============================================================================
-
-// 定向测试 int8_mac：clear、enable、正负乘积、累加序列
+//
+// 流程: 驱动 clear/enable/in_valid/a/b → 核对 out_valid 与 acc；统计 pass/fail
+//
 `timescale 1ns / 1ps
 module tb_int8_mac;
 logic clk;

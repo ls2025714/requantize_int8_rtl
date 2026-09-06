@@ -1,11 +1,20 @@
 // ============================================================================
 // 文件: int8_attn_v.sv
-// 阶段: D10 Attention Probability @ V
-// 作用: Y[i][d] = saturate(round(sum_j P[i][j]*V[j][d]) >> 15)
-//       P = UQ1.15, V = INT8, Y = INT8
-// 验证: tb_int8_attn_v.sv
+// 学习阶段: D10 Attention @ V（概率加权求和）
+// ----------------------------------------------------------------------------
+// 【在整条链的位置】
+//   D9 Softmax 产出 P[seq,seq]（UQ1.15）；本模块再乘 V[seq,head_dim] INT8
+//   单 head 输出 Y[seq,head_dim] INT8；多 head 在 D12 里 CONCAT 后再走 Wo
+//   Wo 本身复用 int8_linear_tiled（N=K=64），不在本文件
+//
+// 【数学】
+//   Y[i][d] = saturate( round( Σ_j P[i][j] * V[j][d] ) >>> 15 )
+//   P 无符号扩展为有符号再乘；累加用较宽 ACC（40-bit）防溢出
+//
+// 【FSM】IDLE→LOAD_P→LOAD_V→对每个 (i,d): MAC(沿 j)→SETTLE→QUANT→EMIT
+// 【验证】tb_int8_attn_v.sv
 // ============================================================================
-
+//
 module int8_attn_v #(
     parameter int INPUT_WIDTH = 8,
     parameter int P_WIDTH     = 16,
@@ -38,6 +47,9 @@ module int8_attn_v #(
     localparam int V_COUNT_W = $clog2(MAX_SEQ * HEAD_DIM + 1);
     localparam logic signed [ACC_WIDTH-1:0] HALF = ACC_WIDTH'(1) <<< (SHIFT_BITS - 1);
 
+    // IDLE: 等 seq；LOAD_P/V: 装概率与 V
+    // MAC: 固定 (i,d)，j 从 0..seq-1 累加乘积
+    // SETTLE: 空一拍对齐；QUANT: round>>>15+饱和；EMIT: 吐 Y[i][d]，推进 d 或 i
     typedef enum logic [2:0] {IDLE, LOAD_P, LOAD_V, MAC, SETTLE, QUANT, EMIT} state_t;
 
     state_t state;
@@ -63,6 +75,7 @@ module int8_attn_v #(
     assign y_row     = i_idx;
     assign y_col     = d_idx;
 
+    // --- 主 FSM：LOAD_P/V → MAC 累加 → QUANT → EMIT ---
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             state   <= IDLE;
@@ -85,6 +98,7 @@ module int8_attn_v #(
                     end
                 end
 
+                // 按 p_row/p_col 写入整张概率表
                 LOAD_P: begin
                     if (p_valid && p_ready) begin
                         p_mem[p_row][p_col] <= p_data;
@@ -95,6 +109,7 @@ module int8_attn_v #(
                     end
                 end
 
+                // 行优先灌 V；满后从 (i,d,j)=(0,0,0) 开始 MAC
                 LOAD_V: begin
                     if (v_valid && v_ready) begin
                         v_mem[v_count / V_COUNT_W'(HEAD_DIM)]
@@ -111,6 +126,7 @@ module int8_attn_v #(
                     end
                 end
 
+                // 一拍累加一项 P[i][j]*V[j][d]；j 走完 → SETTLE
                 MAC: begin
                     prod = $signed({1'b0, p_mem[i_idx][j_idx]}) * $signed(v_mem[j_idx][d_idx]);
                     acc  <= acc + prod;
@@ -125,6 +141,7 @@ module int8_attn_v #(
                     state <= QUANT;
                 end
 
+                // 与 requant 同类的 round + 算术右移 + 对称饱和 → INT8
                 QUANT: begin
                     if (acc >= 0)
                         rounded = acc + HALF;
@@ -140,6 +157,7 @@ module int8_attn_v #(
                     state <= EMIT;
                 end
 
+                // 取走后：同 token 下一通道 d++；否则下一 token i++；全完回 IDLE
                 EMIT: begin
                     if (y_valid && y_ready) begin
                         if (d_idx == HEAD_DIM - 1) begin

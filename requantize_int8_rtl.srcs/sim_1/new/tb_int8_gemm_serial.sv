@@ -1,10 +1,13 @@
 // ============================================================================
-// TB: tb_int8_gemm_serial.sv
-// 测:  int8_gemm_serial
-// 作用: 串行 GEMM 24 case 内联回归
+// 文件: tb_int8_gemm_serial.sv
+// 阶段: 串行 GEMM baseline
+// 作用: 定向+随机回归串行 GEMM INT32 输出
+// DUT: int8_gemm_serial
+// 向量: 内联 24 case（矩阵 + INT32 期望）
 // ============================================================================
-
-// 串行 GEMM 24 case（定向+随机），内联矩阵与 INT32 期望
+//
+// 流程: send_command → stream A/B → receive_c 对拍 C[row][col]；检查背压保持
+//
 `timescale 1ns/1ps
 module tb_int8_gemm_serial;
 localparam int INPUT_WIDTH = 8;

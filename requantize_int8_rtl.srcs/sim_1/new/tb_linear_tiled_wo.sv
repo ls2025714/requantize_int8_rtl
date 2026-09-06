@@ -1,9 +1,14 @@
 // ============================================================================
-// TB: tb_linear_tiled_wo.sv
-// 测:  int8_linear_tiled (NUM_OPS=1, FULL_N=64, FULL_K=64)
-// 作用: D10 — Wo output projection, attn concat → [M,64]
+// 文件: tb_linear_tiled_wo.sv
+// 阶段: D10
+// 作用: 对拍 Wo 输出投影（attn concat → [M,64]）
+// DUT: int8_linear_tiled（NUM_OPS=1, FULL_N=64, FULL_K=64）
+// 向量: tiled_wo_vectors.txt（seed=20260904，5 case）
+// CLI: scripts/run_tiled_wo_xsim.bat
 // ============================================================================
-
+//
+// 流程: preload WEIGHT/MULT → cmd → stream A → receive INT8 C 对拍
+//
 `timescale 1ns/1ps
 
 module tb_linear_tiled_wo;

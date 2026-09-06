@@ -1,6 +1,6 @@
 # requantize_int8_rtl 进度记录
 
-> 最后更新：2026-08-28  
+> 最后更新：2026-09-03  
 > 用途：新开 Cursor 聊天时先读此文件，快速恢复上下文。  
 > **不想细看 → [`NOTES.md`](NOTES.md)（D4–D6 速查）**  
 > **文件地图见 [`FILES.md`](FILES.md)**（每个文件干什么、哪些目录可忽略）。
@@ -327,9 +327,11 @@ source F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/scripts/xsim/export_
 - [x] D10：Attn@V + Wo tiled（PASS）
 - [x] D11：Residual + SwiGLU FFN 分层（PASS）
 - [x] D12：Transformer Block E2E seq=1（1/1 EXACT）
+- [x] ZedBoard：JTAG 烧录成功 + **LD0–3 闪烁已确认**（2026-09-03，`xc7z020_1`，Digilent/210248493052）
+- [ ] 学习：吃透 D6 tile 切分 → D7 基地址
 - [ ] 综合 `int8_linear_layer` / `int8_linear_tiled` / block
+- [ ] （稍后）PS + AXI 封装 INT8；完整 Block **尚未上板**
 - [ ] E2E 扩到 seq=4（可选）
-- [ ] `dot_product_int8` 单独 Top 综合（同条件对比，可选）
 
 ---
 
@@ -339,5 +341,7 @@ source F:/Users/22563/Desktop/FPGAlearn/requantize_int8_rtl/scripts/xsim/export_
 请先读项目根目录 PROGRESS.md 与 NOTES.md。
 D12 已关账：int8_transformer_block E2E seq=1，seed=20260908，1/1 EXACT。
 CLI：scripts/run_transformer_block_xsim.bat；向量=transformer_block_vectors.txt。
-D4–D11 分层回归仍 PASS。下一步：综合 / 可选 seq=4 扩测。
+D4–D11 分层回归仍 PASS。
+板级：ZedBoard blink 冒烟 **PASS**（烧录 + LD0–3 闪，2026-09-03）。
+学习：D2–D4 已懂，D6 tiling 进行中。下一步：学完 D6 切分再 D7；工程稍后 AXI/综合。
 ```

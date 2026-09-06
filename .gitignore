@@ -4,6 +4,7 @@ requantize_int8_rtl.runs/
 requantize_int8_rtl.sim/
 requantize_int8_rtl.hw/
 requantize_int8_rtl.ip_user_files/
+build/
 
 # 波形 / 仿真产物
 *.wdb

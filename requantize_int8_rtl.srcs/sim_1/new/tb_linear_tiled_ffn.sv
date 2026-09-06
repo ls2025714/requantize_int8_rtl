@@ -1,9 +1,14 @@
 // ============================================================================
-// TB: tb_linear_tiled_ffn.sv
-// 测:  int8_linear_tiled — dual instance (wide gate/up, narrow down)
-// 作用: D11 — layered SwiGLU FFN regression (gate/up N=256 K=64, down N=64 K=256)
+// 文件: tb_linear_tiled_ffn.sv
+// 阶段: D11
+// 作用: 对拍分层 SwiGLU FFN（双实例 gate/up + down）
+// DUT: int8_linear_tiled ×2（wide N=256 K=64；narrow N=64 K=256）
+// 向量: ffn_layer_vectors.txt（seed=20260907，3 case）
+// CLI: scripts/run_ffn_layer_xsim.bat
 // ============================================================================
-
+//
+// 流程: 按 stage(gate/up/down) preload WEIGHT/MULT → cmd → stream A → INT8 C 对拍
+//
 `timescale 1ns/1ps
 
 module tb_linear_tiled_ffn;

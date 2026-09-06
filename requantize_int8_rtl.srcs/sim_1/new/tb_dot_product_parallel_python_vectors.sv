@@ -1,11 +1,15 @@
 // ============================================================================
-// TB: tb_dot_product_parallel_python_vectors.sv
-// 测:  int8_dot_product_parallel
-// 作用: Task D — 读 dot_product_parallel_vectors.txt，120 case 对拍
+// 文件: tb_dot_product_parallel_python_vectors.sv
+// 阶段: D1/D2（Task D）
+// 作用: 对拍并行点积 Python golden（120 case）
+// DUT: int8_dot_product_parallel
+// 向量: dot_product_parallel_vectors.txt
+// CLI: scripts/run_task_d_xsim.bat（VCD: scripts/run_task_d_export_vcd.bat）
 // ============================================================================
-
-// Task D: 读 dot_product_parallel_vectors.txt
-// 格式 CASE id K gap hold expected + BEAT a0..b3 keep + END
+//
+// 流程: 读 CASE id/K/gap/hold/expected → 发 BEAT(a0..b3,keep) → 收 m_result 对拍
+// 格式: CASE ... + BEAT ... + END；task: send_command / send_beat / receive_result / pulse_clear
+//
 `timescale 1ns/1ps
 
 module tb_dot_product_parallel_python_vectors;

@@ -1,15 +1,17 @@
 // ============================================================================
 // 文件: int8_mac.sv
-// 阶段: 基础
-// 作用: 单 MAC 单元 — activation × weight，可 clear/enable 控制累加器
-// 验证: tb_int8_mac.sv
+// 学习阶段: D1 基线 — 单拍 MAC（乘加累加器）
+// ----------------------------------------------------------------------------
+// 【在整条链的位置】最底层算子：acc += a×b（有符号 INT8）
+//   后续串行点积 / 流水 MAC 都建立在「乘积符号扩展到 INT32 再累加」上
+//
+// 【行为】
+//   clear_i=1 → 清零 acc，并打一拍 out_valid
+//   enable_i && in_valid → acc += sign_ext16to32(a_i * b_i)
+//   位宽: INT8×INT8 → 16-bit 乘积 → 扩展到 32-bit 累加
+// 【验证】tb_int8_mac.sv
 // ============================================================================
-
-// 接口说明:
-//   clear_i=1  清零累加器并打一拍 out_valid
-//   enable_i=1 且 in_valid=1 时执行 acc += sign_ext(a*b)
-//   a_i 通常接 activation，b_i 接 weight（命名习惯，乘法可交换）
-// 位宽: INT8×INT8 → 16-bit 乘积，符号扩展到 32-bit 再累加
+//
 module int8_mac #(
     parameter int DATA_W = 8,
     parameter int ACC_W = 32
